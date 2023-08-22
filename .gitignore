@@ -1,0 +1,5 @@
+*.json
+*.pkl
+cookie_data
+cache
+.idea
