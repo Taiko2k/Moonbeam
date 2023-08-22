@@ -1,0 +1,33 @@
+
+
+# Version 1
+
+ - Set user agent
+ - Add websocket watcher
+ - Add user icon fallback to avatar thumbnail
+ - Add location/status subtitle to friend row
+ - Add event subsystem
+ - Add world subsystem
+ - Add friend went to world/online/offline events
+ - Sort friend list by favorite first
+ - Expand user info page
+
+ - Add video player monitor
+
+ - Auto update UI, remove dev menu
+
+ - Add friend change name event
+
+ - 2nd pass login flow
+ - Move user data to xdg folder
+
+
+ - 3rd pass login flow
+
+
+ # Version 2
+
+  - Add remove friend
+  - Add favorite/unfavorite friend
+  - Add world info
+  - Add user world list
