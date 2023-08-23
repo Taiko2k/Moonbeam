@@ -436,6 +436,9 @@ class UserIconDisplay(Gtk.Widget):
                 return
             self.icon_texture = Gdk.Texture.new_from_filename(self.icon_path)
             self.queue_draw()
+        else:
+            self.icon_texture = None
+            self.queue_draw()
 
     def set_color(self, r, g, b, a=1.0):
         self.colour.red = r
@@ -457,10 +460,7 @@ class UserIconDisplay(Gtk.Widget):
         y = 0
 
         if self.icon_texture:
-
             self.set_r_rect(x, y, w, h, 360)
-
-
             s.push_rounded_clip(self.r_rect)
             s.append_texture(self.icon_texture, self.rect)
             s.pop()
@@ -853,7 +853,7 @@ class MainWindow(Adw.ApplicationWindow):
                 return -1
             return 1
 
-        #self.friend_ls.sort(compare)
+        self.friend_ls.sort(compare)
 
 
     def activate_test(self, button):
