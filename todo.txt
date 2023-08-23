@@ -2,13 +2,10 @@
 
 # Version 1
 
- - Set user agent
- - Add websocket watcher
+ - Fix friend icons
  - Add user icon fallback to avatar thumbnail
  - Add location/status subtitle to friend row
- - Add event subsystem
  - Add world subsystem
- - Add friend went to world/online/offline events
  - Sort friend list by favorite first
  - Expand user info page
 

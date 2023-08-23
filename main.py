@@ -21,6 +21,7 @@ import requests
 import pickle
 import time
 import threading
+import websocket
 
 AUTH_FILE = 'auth_data.pkl'
 DATA_FILE = 'user_data.pkl'
@@ -36,10 +37,16 @@ if not os.path.exists(USER_ICON_CACHE):
 
 
 
-def filename_hasher(data):
-    hash_bytes = hashlib.sha256(data.encode()).digest()
-    hash_str = base64.urlsafe_b64encode(hash_bytes).decode().rstrip('=')
-    return hash_str
+# def filename_hasher(data):
+#     hash_bytes = hashlib.sha256(data.encode()).digest()
+#     hash_str = base64.urlsafe_b64encode(hash_bytes).decode().rstrip('=')
+#     return hash_str
+
+def extract_filename(url):
+    parts = url.split("/")
+    if "file_" in parts[-2]:
+        return parts[-2]
+    return None
 
 COPY_FRIEND_PROPERTIES = [
     "location", "id", "last_platform", "display_name", "user_icon", "status", "status_description", "bio", "is_friend",
@@ -69,12 +76,18 @@ class Friend():
             setattr(self, key, value)
 
 
-class Job():
+class Job:
     def __init__(self, name: str, data=None):
         self.name = name
         self.data = data
 
 test = Job("a", "b")
+
+class Event:
+    def __init__(self, type="", content=""):
+        self.timestamp = 0
+        self.type = type
+        self.content = content
 
 class VRCZ:
 
@@ -85,14 +98,79 @@ class VRCZ:
         self.friend_id_list = []
         self.friend_objects = {}
         self.user_object = None
+        self.web_thread = None
 
         self.error_log = []  # in event of any error, append human-readable string explaining error
         self.api_client = vrchatapi.ApiClient()
+        self.api_client.user_agent = USER_AGENT
         self.auth_api = authentication_api.AuthenticationApi(self.api_client)
         self.cookie_file_path = 'cookie_data'
 
         self.jobs = []
         self.posts = []
+
+        self.events = []
+
+    def process_event(self, event):
+        if event.type.startswith("friend-"):
+            friend = self.friend_objects.get(event.content["userId"])
+            if friend:
+                if event.type == "friend-online":
+                    if friend:
+                        friend.location = event.content["location"]
+                if event.type == "friend-offline":
+                    if friend:
+                        friend.location = "offline"
+                if event.type == "friend-location":
+                    if friend:
+                        friend.location = event.content["location"]
+
+                self.events.append(event)
+                job = Job(name="event", data=event)
+                self.posts.append(job)
+            else:
+                print("Dunno about that friend :/")
+
+    def on_error(self, ws, error):
+        print("WebSocket Error:", error)
+
+    def on_close(self, ws, close_status_code, close_msg):
+        print("WebSocket Closed. Status Code:", close_status_code, "Message:", close_msg)
+
+    def on_message(self, ws, message):
+        data = json.loads(message)
+
+        type = data["type"]
+        content = data["content"]
+        if content and content.startswith("{"):
+            content = json.loads(content)
+
+        event = Event(type=type, content=content)
+        job = Job("event", event)
+        self.jobs.append(job)
+
+    def web_monitor(self):
+        print("Start websocket thread")
+        def extract_auth_token_from_api_client(api_client):
+            for cookie in api_client.rest_client.cookie_jar:
+                if cookie.name == "auth":
+                    return cookie.value
+            return None
+
+        auth_token = extract_auth_token_from_api_client(self.api_client)
+
+        url = f"wss://pipeline.vrchat.cloud/?authToken={auth_token}"
+
+        # Connect to the WebSocket with the error-handling callbacks
+        ws = websocket.WebSocketApp(
+            url,
+            on_message=self.on_message,
+            on_error=self.on_error,
+            on_close=self.on_close,
+            header=REQUEST_DL_HEADER
+        )
+        ws.run_forever()
+        print("Leave websocket thread")
 
     def save_cookies(self):
         cookie_jar = LWPCookieJar(filename=self.cookie_file_path)
@@ -109,6 +187,7 @@ class VRCZ:
             return
         for cookie in cookie_jar:
             self.api_client.rest_client.cookie_jar.set_cookie(cookie)
+
     def load_app_data(self):  # Run on application start
         self.load_cookies()
         if os.path.isfile(DATA_FILE):
@@ -163,6 +242,22 @@ class VRCZ:
             self.error_log.append(f"Error during 2FA verification: {e}")
             raise ValueError(f"Error during 2FA verification: {e}")
 
+    def update_local_friend_data(self, r):
+        t = self.friend_objects.get(r.id)
+        if not t:
+            print("NEW FRIEND OBJECT")
+            t = Friend()
+        else:
+            print("UPDATE FRIEND OBJECT")
+            if t.display_name != r.display_name:
+                print("Friend changed their name!")
+                print(t)
+                print(r)
+        for key in COPY_FRIEND_PROPERTIES:
+            setattr(t, key, getattr(r, key))
+
+        self.friend_objects[r.id] = t
+
     def update(self):
 
         # Try authenticate
@@ -176,7 +271,24 @@ class VRCZ:
 
         self.current_user_name = user.display_name
         self.friend_id_list = user.friends
-        print(user)
+
+        #print(user)
+
+        for id in user.offline_friends:
+            friend = self.friend_objects.get(id)
+            if friend:
+                friend.status = "offline"
+                friend.location = "offline"
+        for id in user.online_friends:
+            friend = self.friend_objects.get(id)
+            if friend:
+                friend.status = "active"
+                friend.location = "unknown"
+        for id in user.active_friends:
+            friend = self.friend_objects.get(id)
+            if friend:
+                friend.status = "active"
+                friend.location = "offline"
 
         # Update user data
         if self.user_object is None:
@@ -187,44 +299,25 @@ class VRCZ:
             except:
                 print("no user key ", key)
 
+        self.save_app_data()
+
         job = Job("download-check-user-icon", self.user_object)
         self.jobs.append(job)
 
-        # Fetch the list of friends
-        friends_api_instance = friends_api.FriendsApi(self.api_client)
-        friends_list = friends_api_instance.get_friends()
-        friends_list.extend(friends_api_instance.get_friends(offline="true"))
+        job = Job("refresh-friend-db")
+        self.jobs.append(job)
 
-        # Update local friend data
-        for r in friends_list:
-            print(r)
-            t = self.friend_objects.get(r.id)
-            if not t:
-                print("NEW FRIEND OBJECT")
-                t = Friend()
-            else:
-                print("UPDATE FRIEND OBJECT")
-                if t.display_name != r.display_name:
-                    print("Friend changed their name!")
-                    print(t)
-                    print(r)
-            for key in COPY_FRIEND_PROPERTIES:
-                setattr(t, key, getattr(r, key))
-
-            self.friend_objects[r.id] = t
-
-
-        # Check user icon is cached
-        for k, v in self.friend_objects.items():
-            key = filename_hasher(v.user_icon)
-            key_path = os.path.join(USER_ICON_CACHE, key)
-            if v.user_icon and not os.path.isfile(key_path):
-                print("queue download user icon")
-                job = Job("download-check-user-icon", v)
-                self.jobs.append(job)
-
-        self.save_app_data()
         print(f"Logged in as: {self.current_user_name}")
+
+        job = Job("update-friend-list")
+        vrcz.posts.append(job)
+
+
+        if not self.web_thread or not self.web_thread.is_alive():
+            self.web_thread = threading.Thread(target=self.web_monitor)
+            self.web_thread.daemon = True
+            self.web_thread.start()
+
         return 0
 
     def logout(self):
@@ -242,25 +335,71 @@ class VRCZ:
                 print("doing job")
                 print(job.name)
 
+                if job.name == "event":
+                    self.process_event(job.data)
+
+                if job.name == "refresh-friend-db":
+                    friends_api_instance = friends_api.FriendsApi(self.api_client)
+                    print("COOLDOWN")
+                    time.sleep(3)
+                    n = 100
+                    offset = 0
+                    while True:
+                        next = friends_api_instance.get_friends(n=n, offset=offset)
+
+                        if not next:
+                            break
+                        for r in next:
+                            print(r)
+                            self.update_local_friend_data(r)
+                        job = Job("update-friend-list")
+                        vrcz.posts.append(job)
+                        offset += n
+                        print("COOLDOWN")
+                        time.sleep(2)
+
+                    print("COOLDOWN")
+                    time.sleep(2)
+                    n = 100
+                    offset = 0
+                    while True:
+                        next = friends_api_instance.get_friends(n=n, offset=offset, offline="true")
+                        if not next:
+                            break
+                        for r in next:
+                            print(r)
+                            self.update_local_friend_data(r)
+                        job = Job("update-friend-list")
+                        vrcz.posts.append(job)
+                        offset += n
+                        print("COOLDOWN")
+                        time.sleep(3)
+                    self.save_app_data()
+
+
                 if job.name == "download-check-user-icon":
 
                     v = job.data
                     if v.user_icon and v.user_icon.startswith("http"):
                         print("check for icon")
-                        key = filename_hasher(v.user_icon)
+                        key = extract_filename(v.user_icon)
+                        if not key:
+                            print("KEY ERROR")
+                            continue
                         key_path = os.path.join(USER_ICON_CACHE, key)
                         if key not in os.listdir(USER_ICON_CACHE):
                             print("download icon")
 
                             response = requests.get(v.user_icon, headers=REQUEST_DL_HEADER)
+                            time.sleep(0.5)
                             with open(key_path, 'wb') as f:
                                 f.write(response.content)
 
-                            job = Job("update-friend-list")
+                            job = Job("update-friend-rows")
                             self.posts.append(job)
-                            # v.mini_icon_filepath = key_path
 
-            time.sleep(2)
+
+            time.sleep(0.1)
 
 
 
@@ -272,7 +411,6 @@ vrcz.load_app_data()
 thread = threading.Thread(target=vrcz.worker)
 thread.daemon = True  # Set the thread as a daemon
 thread.start()
-
 
 class UserIconDisplay(Gtk.Widget):
     icon_path = GObject.Property(type=str, default='')
@@ -506,7 +644,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.event_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.c4 = Adw.Clamp()
         self.c4.set_child(self.event_box)
-        self.vst1.add_titled_with_icon(self.c4, "event", "Monitor", "radio-checked-symbolic")
+        self.vst1.add_titled_with_icon(self.c4, "event", "GPS", "radio-checked-symbolic")
 
         # ----------------
         self.outer_box.append(Gtk.Separator())
@@ -580,6 +718,8 @@ class MainWindow(Adw.ApplicationWindow):
 
         #self.login_box.set_visible(False)
 
+        self.update_friend_list()
+
         GLib.timeout_add(900, self.heartbeat)
 
     def set_style(self, target, name):
@@ -592,62 +732,100 @@ class MainWindow(Adw.ApplicationWindow):
         if friend is None and id == vrcz.user_object.id:
             friend = vrcz.user_object
         if row and friend:
+            pass
+            old = row.name
             row.name = f"<b>{friend.display_name}</b>"
 
+            new = 0
             if friend.status == "offline":
-                row.status = 0
+                new = 0
             elif friend.status != "offline" and friend.location == "offline":
-                row.status = 1
+                new = 1
             elif friend.status == "active" and friend.location != "offline":
-                row.status = 2
+                new = 2
             elif friend.status == "busy" and friend.location != "offline":
-                row.status = 3
+                new = 3
             elif friend.status == "join me" and friend.location != "offline":
-                row.status = 4
+                new = 4
             elif friend.status == "ask me" and friend.location != "offline":
-                row.status = 5
+                new = 5
+
+            row.status = new
 
             if friend.user_icon:
-                key = filename_hasher(friend.user_icon)
-                key_path = os.path.join(USER_ICON_CACHE, key)
-                row.mini_icon_filepath = key_path
+                key = extract_filename(friend.user_icon)
+                if key:
+                    key_path = os.path.join(USER_ICON_CACHE, key)
+                    row.mini_icon_filepath = key_path
 
 
     def heartbeat(self):
-        if vrcz.posts:
+        update_friend_list = False
+        update_friend_rows = False
+        while vrcz.posts:
             post = vrcz.posts.pop(0)
             print("post")
             print(post.name)
             if post.name == "update-friend-list":
-                print(0)
-                for k, v in self.friend_data.items():
-                    print(00)
-                    self.set_friend_row_data(k)
+                update_friend_list = True
+            if post.name == "update-friend-rows":
+                update_friend_rows = True
+            if post.name == "event":
+                if post.data.type.startswith("friend-"):
+                    box = Gtk.Box()
+                    label = Gtk.Label(label=post.data.type)
+                    box.append(label)
 
-        GLib.timeout_add(250, self.heartbeat)
+                    user = vrcz.friend_objects.get(post.data.content["userId"])
+                    if user:
+                        label = Gtk.Label(label=user.display_name)
+                        box.append(label)
+
+                    self.event_box.prepend(box)
+                    job = Job("update-friend-list")
+                    vrcz.posts.append(job)
+
+        if update_friend_rows:
+            for k, v in self.friend_data.items():
+                self.set_friend_row_data(k)
+        if update_friend_list:
+            self.update_friend_list()
+
+        GLib.timeout_add(1000, self.heartbeat)
 
     def test2(self, button):
-        self.update_friend_list()
+        #self.update_friend_list()
+        job = Job("update-friend-list")
+
+        # for k, v in self.friend_data.items():
+        #     self.set_friend_row_data(k)
+
+        vrcz.posts.append(job)
+
     def test3(self, button):
         if vrcz.update():
             self.login_box.set_visible(True)
+
     def update_friend_list(self):
+
         self.friend_ls.remove_all()
         #print(vrcz.friend_objects)
         if vrcz.user_object:
-            fd = FriendRow()
-            fd.is_user = True
-            self.friend_data[vrcz.user_object.id] = fd
+            if vrcz.user_object.id not in self.friend_data:
+                fd = FriendRow()
+                fd.is_user = True
+                self.friend_data[vrcz.user_object.id] = fd
+            fd = self.friend_data[vrcz.user_object.id]
             self.set_friend_row_data(vrcz.user_object.id)
             self.friend_ls.append(fd)
 
         for k, v in vrcz.friend_objects.items():
             if k not in self.friend_data:
                 fd = FriendRow()
-
                 self.friend_data[k] = fd
-                self.set_friend_row_data(k)
-                self.friend_ls.append(fd)
+            fd = self.friend_data[k]
+            self.set_friend_row_data(k)
+            self.friend_ls.append(fd)
 
         def get_weight(row):
             if row.is_user:
@@ -675,7 +853,7 @@ class MainWindow(Adw.ApplicationWindow):
                 return -1
             return 1
 
-        self.friend_ls.sort(compare)
+        #self.friend_ls.sort(compare)
 
 
     def activate_test(self, button):
