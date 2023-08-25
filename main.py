@@ -355,7 +355,10 @@ class VRCZ:
                         job = Job("update-friend-list")
                         vrcz.posts.append(job)
                         offset += n
+                        if len(next) < n:
+                            break
                         print("COOLDOWN")
+
                         time.sleep(2)
 
                     print("COOLDOWN")
@@ -372,6 +375,8 @@ class VRCZ:
                         job = Job("update-friend-list")
                         vrcz.posts.append(job)
                         offset += n
+                        if len(next) < n:
+                            break
                         print("COOLDOWN")
                         time.sleep(3)
                     self.save_app_data()
@@ -494,6 +499,13 @@ class UserIconDisplay(Gtk.Widget):
 
         #s.append_color(self.colour, self.rect)
 
+
+
+class UserInfoWindow(Adw.Window):
+    def __init__(self):
+        super().__init__()
+
+        self.set_default_size(600, 400)
 
 
 class MainWindow(Adw.ApplicationWindow):
@@ -721,6 +733,12 @@ class MainWindow(Adw.ApplicationWindow):
         self.update_friend_list()
 
         GLib.timeout_add(900, self.heartbeat)
+
+        # self.user_window = UserInfoWindow()
+        # self.user_window.set_transient_for(self)
+        # self.user_window.set_modal(True)
+        # self.user_window.set_destroy_with_parent(True)
+        # self.user_window.show()
 
     def set_style(self, target, name):
         style_context = target.get_style_context()
