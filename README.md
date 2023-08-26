@@ -1,8 +1,10 @@
 
- # Moonbeam
+ # Moonbeam VRC
  
- A VRChat monitor and friendship management tool.
+ A VRChat monitor and friendship management tool. Kind of like VRCX but with fewer features and designed for Linux.
  
- Written in GTK4 + Libadwaita. Currently, not very useful.
+ Written in GTK4 + Libadwaita. 
  
- > :warning: Uses libadwaita v1.4
+ Not particularly usable in its current state. Check back soon.
+ 
+ > :warning: Uses unstable libadwaita v1.4

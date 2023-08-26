@@ -22,6 +22,7 @@ import pickle
 import time
 import threading
 import websocket
+import datetime
 
 AUTH_FILE = 'auth_data.pkl'
 DATA_FILE = 'user_data.pkl'
@@ -56,6 +57,22 @@ COPY_FRIEND_PROPERTIES = [
 RUNNING = True
 
 
+def format_time(t):
+    # Convert time (assuming it's in seconds since epoch) to a datetime object
+    dt = datetime.datetime.fromtimestamp(t)
+    current_dt = datetime.datetime.now()
+
+    # Calculate the difference between the given time and current time
+    time_diff = current_dt - dt
+
+    if time_diff < datetime.timedelta(days=1):  # If the difference is less than 24 hours
+        formatted_time = dt.strftime('%I:%M%p').lower()
+    else:
+        formatted_time = dt.strftime('%a %d %b %I:%M%p').replace(" 0", " ").lower()
+
+    return formatted_time
+
+
 class FriendRow(GObject.Object):
     name = GObject.Property(type=str, default='')
     status = GObject.Property(type=int, default=0)
@@ -87,7 +104,50 @@ class Event:
     def __init__(self, type="", content=""):
         self.timestamp = 0
         self.type = type
+        self.subject = ""
+        self.location = ""
+        self.location_to = ""
         self.content = content
+
+class Instance:
+    def __init__(self):
+        self.world_id = ""
+        self.instance_id = ""  # e.g 12345
+        self.instance_type = ""  # e.g private
+        self.owner_id = ""
+        self.can_request_invite = False
+        self.region = ""  # e.g jp
+        self.nonce = ""
+
+
+def parse_world_info(s):
+    world = Instance()
+
+    # Split on '&'
+    parts = s.split('&')
+
+    for part in parts:
+        if 'worldId' in part:
+            world.world_id = part.split('=')[1]
+        elif 'instanceId' in part:
+            instance_parts = part.split('=')[1].split('~')
+            world.instance_id = instance_parts[0]
+
+            for instance_part in instance_parts[1:]:
+                if 'hidden' in instance_part:
+                    world.instance_type = 'hidden'
+                    world.owner_id = instance_part.split('(')[1].rstrip(')')
+                elif 'private' in instance_part:
+                    world.instance_type = 'private'
+                    world.owner_id = instance_part.split('(')[1].rstrip(')')
+                elif 'canRequestInvite' in instance_part:
+                    world.can_request_invite = True
+                elif 'region' in instance_part:
+                    world.region = instance_part.split('(')[1].rstrip(')')
+                elif 'nonce' in instance_part:
+                    world.nonce = instance_part.split('(')[1].rstrip(')')
+
+    return world
 
 class VRCZ:
 
@@ -112,9 +172,12 @@ class VRCZ:
         self.events = []
 
     def process_event(self, event):
+        #bm2
+        event.timestamp = time.time()
         if event.type.startswith("friend-"):
             friend = self.friend_objects.get(event.content["userId"])
             if friend:
+                event.subject = friend
                 if event.type == "friend-online":
                     if friend:
                         friend.location = event.content["location"]
@@ -122,6 +185,10 @@ class VRCZ:
                     if friend:
                         friend.location = "offline"
                 if event.type == "friend-location":
+                    print("-----------")
+                    print(event.content["location"])
+                    print(event.content["travelingToLocation"])
+                    print(event.content["user"])
                     if friend:
                         friend.location = event.content["location"]
 
@@ -273,12 +340,15 @@ class VRCZ:
         self.friend_id_list = user.friends
 
         #print(user)
+        fetch_offline = False
 
         for id in user.offline_friends:
             friend = self.friend_objects.get(id)
             if friend:
                 friend.status = "offline"
                 friend.location = "offline"
+            else:
+                fetch_offline = True
         for id in user.online_friends:
             friend = self.friend_objects.get(id)
             if friend:
@@ -306,6 +376,11 @@ class VRCZ:
 
         job = Job("refresh-friend-db")
         self.jobs.append(job)
+
+        if fetch_offline:
+            print("Get offline friends as well")
+            job = Job("refresh-friend-db-offline")
+            self.jobs.append(job)
 
         print(f"Logged in as: {self.current_user_name}")
 
@@ -338,6 +413,32 @@ class VRCZ:
                 if job.name == "event":
                     self.process_event(job.data)
 
+                if job.name == "refresh-friend-db-offline":
+
+                    friends_api_instance = friends_api.FriendsApi(self.api_client)
+
+                    print("COOLDOWN")
+                    time.sleep(2)
+                    n = 100
+                    offset = 0
+                    while True:
+                        next = friends_api_instance.get_friends(n=n, offset=offset, offline="true")
+                        if not next:
+                            break
+                        for r in next:
+                            #print(r)
+                            self.update_local_friend_data(r)
+                        job = Job("update-friend-list")
+                        vrcz.posts.append(job)
+                        offset += n
+                        if len(next) < n:
+                            break
+                        print("COOLDOWN")
+                        time.sleep(10)
+
+                    self.save_app_data()
+
+
                 if job.name == "refresh-friend-db":
                     friends_api_instance = friends_api.FriendsApi(self.api_client)
                     print("COOLDOWN")
@@ -359,26 +460,8 @@ class VRCZ:
                             break
                         print("COOLDOWN")
 
-                        time.sleep(2)
+                        time.sleep(10)
 
-                    print("COOLDOWN")
-                    time.sleep(2)
-                    n = 100
-                    offset = 0
-                    while True:
-                        next = friends_api_instance.get_friends(n=n, offset=offset, offline="true")
-                        if not next:
-                            break
-                        for r in next:
-                            print(r)
-                            self.update_local_friend_data(r)
-                        job = Job("update-friend-list")
-                        vrcz.posts.append(job)
-                        offset += n
-                        if len(next) < n:
-                            break
-                        print("COOLDOWN")
-                        time.sleep(3)
                     self.save_app_data()
 
 
@@ -549,7 +632,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.info_box_header = Gtk.Box()
         self.info_box1.append(self.info_box_header)
 
-        self.info_box_header_title = Gtk.Label(label="Display Name")
+        self.info_box_header_title = Gtk.Label(label="WIP")
         self.info_box_header_title.set_selectable(True)
         self.set_style(self.info_box_header_title, "title-2")
         self.info_box_header.set_margin_top(6)
@@ -653,10 +736,27 @@ class MainWindow(Adw.ApplicationWindow):
 
         # ---------------
 
-        self.event_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.event_box_holder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.c4 = Adw.Clamp()
-        self.c4.set_child(self.event_box)
-        self.vst1.add_titled_with_icon(self.c4, "event", "GPS", "radio-checked-symbolic")
+        self.c4.set_child(self.event_box_holder)
+        self.vst1.add_titled_with_icon(self.c4, "event", "Event Log", "find-location-symbolic")
+
+        self.events_empty = True
+        self.events_empty_status = Adw.StatusPage()
+        self.events_empty_status.set_title("No events yet")
+        self.events_empty_status.set_icon_name("help-about-symbolic")
+        self.events_empty_status.set_vexpand(True)
+        self.event_box_holder.append(self.events_empty_status)
+
+        self.event_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.event_box.set_margin_top(5)
+
+        self.event_scroll = Gtk.ScrolledWindow()
+        self.event_scroll.set_vexpand(True)
+        self.event_scroll.set_child(self.event_box)
+
+
+
 
         # ----------------
         self.outer_box.append(Gtk.Separator())
@@ -789,15 +889,90 @@ class MainWindow(Adw.ApplicationWindow):
             if post.name == "update-friend-rows":
                 update_friend_rows = True
             if post.name == "event":
-                if post.data.type.startswith("friend-"):
+                # bm1
+                event = post.data
+                if event.type.startswith("friend-"):
+                    if event.type == "friend-active":
+                        continue
+                    if event.type == "friend-update":
+                        continue
+                    if self.events_empty:
+                        self.events_empty = False
+                        self.event_box_holder.remove(self.events_empty_status)
+                        self.event_box_holder.append(self.event_scroll)
+
+
                     box = Gtk.Box()
-                    label = Gtk.Label(label=post.data.type)
+                    box.set_margin_bottom(3)
+                    print(event.type)
+
+
+                    #label = Gtk.Label(label=post.data.type)
+                    label = Gtk.Label(label=format_time(event.timestamp))
+                    self.set_style(label, "dim-label")
+                    label.set_margin_end(5)
                     box.append(label)
 
-                    user = vrcz.friend_objects.get(post.data.content["userId"])
+                    user = event.subject
                     if user:
-                        label = Gtk.Label(label=user.display_name)
+                        label = Gtk.Label()
+                        if user.location != "offline":
+                            label.set_markup(f"<span foreground=\"#16f2ca\" weight=\"bold\">{user.display_name}</span>")
+                        else:
+                            label.set_markup(f"<span weight=\"bold\">{user.display_name}</span>")
+                            self.set_style(label, "dim-label")
+
+                        label.set_margin_end(5)
                         box.append(label)
+
+                        if event.type == "friend-online":
+                            label = Gtk.Label()
+                            label.set_markup(f"came <b>online</b>")
+                            label.set_margin_end(5)
+                            box.append(label)
+
+                        if event.type == "friend-offline":
+                            label = Gtk.Label()
+                            label.set_markup(f"went <b>offline</b>")
+                            label.set_margin_end(5)
+                            box.append(label)
+
+                        if event.type == "friend-location":
+                            if event.content["location"] == "traveling":
+                                target = event.content["travelingToLocation"]
+                                # /if target == "private" or not target:
+                                label = Gtk.Label()
+                                label.set_markup(f"is on the move")
+                                label.set_margin_end(5)
+                                box.append(label)
+                                # else:
+                                #     label = Gtk.Label()
+                                #     label.set_markup(f"is traveling to")
+                                #     label.set_margin_end(5)
+                                #     box.append(label)
+                                #
+                                #     label = Gtk.Label()
+                                #     label.set_markup(f"{target[:25]}...")
+                                #     label.set_margin_end(5)
+                                #     box.append(label)
+                            else:
+                                target = user.location
+                                if target == "private" or not target:
+                                    label = Gtk.Label()
+                                    label.set_markup(f"arrived at a hidden location")
+                                    label.set_margin_end(5)
+                                    box.append(label)
+                                else:
+                                    label = Gtk.Label()
+                                    label.set_markup(f"arrived at")
+                                    label.set_margin_end(5)
+                                    box.append(label)
+
+                                    label = Gtk.Label()
+                                    label.set_markup(f"{target}...")
+                                    label.set_margin_end(5)
+                                    box.append(label)
+
 
                     self.event_box.prepend(box)
                     job = Job("update-friend-list")
