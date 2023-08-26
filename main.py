@@ -1141,9 +1141,10 @@ class MainWindow(Adw.ApplicationWindow):
         # Here you can also reset the UI fields if needed
 
 
-class VRCZAPP(Adw.Application):
+class MOONBEAM(Adw.Application):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self.win = None
         self.connect('activate', self.on_activate)
 
     def on_activate(self, app):
@@ -1151,7 +1152,7 @@ class VRCZAPP(Adw.Application):
         self.win.present()
 
 
-app = VRCZAPP(application_id="com.github.taiko2k.moonbeam")
+app = MOONBEAM(application_id="com.github.taiko2k.moonbeam")
 app.run(sys.argv)
 RUNNING = False
-time.sleep(2)
+time.sleep(1)
