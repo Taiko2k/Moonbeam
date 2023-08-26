@@ -37,26 +37,20 @@ DATA_FILE = 'user_data.pkl'
 USER_ICON_CACHE = "cache/avatar1"
 
 
-
 if not os.path.exists(USER_ICON_CACHE):
     os.makedirs(USER_ICON_CACHE)
 
 
-
-# def filename_hasher(data):
-#     hash_bytes = hashlib.sha256(data.encode()).digest()
-#     hash_str = base64.urlsafe_b64encode(hash_bytes).decode().rstrip('=')
-#     return hash_str
-
 def extract_filename(url):
     parts = url.split("/")
-    if "file_" in parts[-2]:
-        return parts[-2]
+    for part in reversed(parts):
+        if part.startswith("file_"):
+            return part
     return None
 
 COPY_FRIEND_PROPERTIES = [
     "location", "id", "last_platform", "display_name", "user_icon", "status", "status_description", "bio", "is_friend",
-    "last_platform",
+    "last_platform", "current_avatar_thumbnail_image_url"
 ]
 
 RUNNING = True
@@ -327,6 +321,10 @@ class VRCZ:
                 print(r)
         for key in COPY_FRIEND_PROPERTIES:
             setattr(t, key, getattr(r, key))
+        job = Job("download-check-user-icon", t)
+        self.jobs.append(job)
+        job = Job("download-check-user-avatar-thumbnail", t)
+        self.jobs.append(job)
 
         self.friend_objects[r.id] = t
 
@@ -336,15 +334,16 @@ class VRCZ:
         try:
             user = self.auth_api.get_current_user()
             self.logged_in = True
-        except:
+        except Exception as e:
             print("ERROR --1")
+            print(str(e))
             self.logout()
             return 1
 
         self.current_user_name = user.display_name
         self.friend_id_list = user.friends
 
-        #print(user)
+        print(user)
         fetch_offline = False
 
         for id in user.offline_friends:
@@ -378,6 +377,8 @@ class VRCZ:
 
         job = Job("download-check-user-icon", self.user_object)
         self.jobs.append(job)
+        job = Job("download-check-user-avatar-thumbnail", self.user_object)
+        self.jobs.append(job)
 
         job = Job("refresh-friend-db")
         self.jobs.append(job)
@@ -403,8 +404,8 @@ class VRCZ:
     def logout(self):
         print("Logout")
 
-        if os.path.exists(self.AUTH_FILE):
-            os.remove(self.AUTH_FILE)
+        if os.path.exists(AUTH_FILE):
+            os.remove(AUTH_FILE)
 
         self.__init__()
 
@@ -442,7 +443,10 @@ class VRCZ:
                         time.sleep(10)
 
                     self.save_app_data()
-
+                    job = Job("update-friend-rows")
+                    self.posts.append(job)
+                    job = Job("update-friend-list")
+                    self.posts.append(job)
 
                 if job.name == "refresh-friend-db":
                     friends_api_instance = friends_api.FriendsApi(self.api_client)
@@ -468,6 +472,10 @@ class VRCZ:
                         time.sleep(10)
 
                     self.save_app_data()
+                    job = Job("update-friend-rows")
+                    self.posts.append(job)
+                    job = Job("update-friend-list")
+                    self.posts.append(job)
 
 
                 if job.name == "download-check-user-icon":
@@ -478,6 +486,7 @@ class VRCZ:
                         key = extract_filename(v.user_icon)
                         if not key:
                             print("KEY ERROR")
+                            print(key)
                             continue
                         key_path = os.path.join(USER_ICON_CACHE, key)
                         if key not in os.listdir(USER_ICON_CACHE):
@@ -488,12 +497,27 @@ class VRCZ:
                             with open(key_path, 'wb') as f:
                                 f.write(response.content)
 
-                            job = Job("update-friend-rows")
-                            self.posts.append(job)
+                if job.name == "download-check-user-avatar-thumbnail":
+
+                    v = job.data
+                    if v.current_avatar_thumbnail_image_url and v.current_avatar_thumbnail_image_url.startswith("http"):
+                        print("check for icon")
+                        key = extract_filename(v.current_avatar_thumbnail_image_url)
+                        if not key:
+                            print("KEY ERROR")
+                            print(key)
+                            continue
+                        key_path = os.path.join(USER_ICON_CACHE, key)
+                        if key not in os.listdir(USER_ICON_CACHE):
+                            print("download icon")
+
+                            response = requests.get(v.current_avatar_thumbnail_image_url, headers=REQUEST_DL_HEADER)
+                            time.sleep(0.5)
+                            with open(key_path, 'wb') as f:
+                                f.write(response.content)
 
 
             time.sleep(0.1)
-
 
 
 
@@ -767,6 +791,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.outer_box.append(Gtk.Separator())
 
         self.dev_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.dev_box.set_margin_top(12)
         self.c2 = Adw.Clamp()
         self.c2.set_child(self.dev_box)
         self.vst1.add_titled_with_icon(self.c2, "dev", "Dev Menu", "pan-down-symbolic")
@@ -777,9 +802,9 @@ class MainWindow(Adw.ApplicationWindow):
         self.test_button.connect("clicked", self.test3)
         self.dev_box.append(self.test_button)
 
-        self.test_button = Gtk.Button(label="Load Friend List")
-        self.test_button.connect("clicked", self.test2)
-        self.dev_box.append(self.test_button)
+        # self.test_button = Gtk.Button(label="Load Friend List")
+        # self.test_button.connect("clicked", self.test2)
+        # self.dev_box.append(self.test_button)
 
         # self.gps_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         # self.gps_label = Gtk.Label(label="GPS")
@@ -806,28 +831,48 @@ class MainWindow(Adw.ApplicationWindow):
         self.login_box.set_margin_end(12)
         #self.outer_box.append(self.login_box)
 
+        self.stage1_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+
+
         self.username_entry = Gtk.Entry(placeholder_text="Username")
         self.password_entry = Gtk.Entry(placeholder_text="Password", visibility=False)
-        self.login_box.append(self.username_entry)
-        self.login_box.append(self.password_entry)
+        self.stage1_box.append(self.username_entry)
+        self.stage1_box.append(self.password_entry)
+
 
         self.request_code_button = Gtk.Button(label="Request Code")
         self.request_code_button.set_margin_bottom(30)
         self.request_code_button.connect("clicked", self.activate_get_code)
-        self.login_box.append(self.request_code_button)
+        self.stage1_box.append(self.request_code_button)
+        self.login_box.append(self.stage1_box)
+
+        self.stage2_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.stage2_box.set_visible(False)
+
+
 
         self.two_fa_entry = Gtk.Entry(placeholder_text="2FA Code")
-        self.login_box.append(self.two_fa_entry)
+        self.stage2_box.append(self.two_fa_entry)
 
         self.login_button = Gtk.Button(label="Verify Code")
         self.login_button.connect("clicked", self.activate_verify_code)
-        self.login_box.append(self.login_button)
+        self.stage2_box.append(self.login_button)
         self.login_button.set_margin_bottom(60)
+        self.login_box.append(self.stage2_box)
+
+        self.stage3_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.stage3_box.set_visible(False)
 
         self.logout_button = Gtk.Button(label="Logout")
         self.logout_button.connect("clicked", self.activate_logout)
         self.logout_button.set_margin_bottom(20)
-        self.login_box.append(self.logout_button)
+        self.stage3_box.append(self.logout_button)
+        self.login_box.append(self.stage3_box)
+
+        if os.path.isfile(vrcz.cookie_file_path):
+            self.stage1_box.set_visible(False)
+            self.stage3_box.set_visible(True)
+
 
         # self.test_button = Gtk.Button(label="_test")
         # self.test_button.connect("clicked", self.activate_test)
@@ -877,6 +922,11 @@ class MainWindow(Adw.ApplicationWindow):
 
             if friend.user_icon:
                 key = extract_filename(friend.user_icon)
+                if key:
+                    key_path = os.path.join(USER_ICON_CACHE, key)
+                    row.mini_icon_filepath = key_path
+            elif friend.current_avatar_thumbnail_image_url:
+                key = extract_filename(friend.current_avatar_thumbnail_image_url)
                 if key:
                     key_path = os.path.join(USER_ICON_CACHE, key)
                     row.mini_icon_filepath = key_path
@@ -1062,6 +1112,9 @@ class MainWindow(Adw.ApplicationWindow):
         password = self.password_entry.get_text()
         try:
             vrcz.sign_in_step1(username, password)
+            self.stage3_box.set_visible(False)
+            self.stage2_box.set_visible(True)
+            self.stage1_box.set_visible(False)
         except ValueError as e:
             print(e)
 
@@ -1070,11 +1123,20 @@ class MainWindow(Adw.ApplicationWindow):
         try:
             vrcz.sign_in_step2(code)
             if vrcz.update():
-                self.login_box.set_visible(False)
+                self.stage3_box.set_visible(True)
+                self.stage2_box.set_visible(False)
+                self.stage1_box.set_visible(False)
+            else:
+                self.stage3_box.set_visible(False)
+                self.stage2_box.set_visible(False)
+                self.stage1_box.set_visible(True)
         except ValueError as e:
             print(e)
 
     def activate_logout(self, button):
+        self.stage3_box.set_visible(False)
+        self.stage2_box.set_visible(False)
+        self.stage1_box.set_visible(True)
         vrcz.logout()
         # Here you can also reset the UI fields if needed
 
