@@ -24,14 +24,19 @@ import threading
 import websocket
 import datetime
 
-AUTH_FILE = 'auth_data.pkl'
-DATA_FILE = 'user_data.pkl'
-USER_ICON_CACHE = "cache/avatar1"
 
+APP_TITLE = "Moonbeam VRC"
+VERSION = "v0.1 indev"
 USER_AGENT = 'taiko2k-moonbeam'
 REQUEST_DL_HEADER = {
     'User-Agent': USER_AGENT,
 }
+
+AUTH_FILE = 'auth_data.pkl'
+DATA_FILE = 'user_data.pkl'
+USER_ICON_CACHE = "cache/avatar1"
+
+
 
 if not os.path.exists(USER_ICON_CACHE):
     os.makedirs(USER_ICON_CACHE)
@@ -598,7 +603,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.outer_box = Gtk.Box()
 
         self.set_default_size(1000, 500)
-        self.set_title("Moonbeam")
+        self.set_title(APP_TITLE)
 
         self.nav = Adw.NavigationSplitView()
         self.set_content(self.nav)
@@ -1084,7 +1089,7 @@ class VRCZAPP(Adw.Application):
         self.win.present()
 
 
-app = VRCZAPP(application_id="com.github.taiko2k.vrcz")
+app = VRCZAPP(application_id="com.github.taiko2k.moonbeam")
 app.run(sys.argv)
 RUNNING = False
 time.sleep(2)
