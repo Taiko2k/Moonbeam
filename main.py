@@ -676,33 +676,22 @@ class MainWindow(Adw.ApplicationWindow):
         self.t1.set_content(self.vst1)
 
 
-        # ---- Info page
+        # ------------------ Info page
         self.info_list = Gtk.ListBox()
         self.info_list.set_selection_mode(Gtk.SelectionMode.NONE)
-        style_context = self.info_list.get_style_context()
-        style_context.add_class('boxed-ist')
 
         self.c1 = Adw.Clamp()
+        self.vst1.add_titled_with_icon(self.c1, "info", "Player Info", "user-info-symbolic")
 
         self.info_box1 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
 
         self.info_box_header = Gtk.Box()
         self.info_box1.append(self.info_box_header)
 
-        # self.info_box_header_title = Gtk.Label(label="WIP")
-        # self.info_box_header_title.set_selectable(True)
-        # self.set_style(self.info_box_header_title, "title-2")
         self.info_box_header.set_margin_top(10)
-        # self.info_box_header.append(self.info_box_header_title)
 
-        #self.c1.set_child(self.info_list)
         self.c1.set_child(self.info_box1)
         self.info_box1.append(self.info_list)
-
-
-        self.vst1.add_titled_with_icon(self.c1, "info", "Player Info", "user-info-symbolic")
-
-        self.shown_user = None
 
         self.info_name = Adw.ActionRow()
         self.info_name.set_subtitle("ExampleUser")
@@ -723,32 +712,30 @@ class MainWindow(Adw.ApplicationWindow):
         self.set_style(self.info_country, "property")
         self.status_row.append(self.info_country)
 
-        self.status_row2 = Gtk.ListBox()
+        self.status_row = Gtk.ListBox()
         #self.status_row2.set_hexpand(True)
-        self.status_row2.set_selection_mode(Gtk.SelectionMode.NONE)
-        self.b1.append(self.status_row2)
+        self.status_row.set_selection_mode(Gtk.SelectionMode.NONE)
+        self.b1.append(self.status_row)
 
         self.info_country = Adw.ActionRow()
         self.info_country.set_subtitle("PC")
         self.info_country.set_title("Platform")
         self.set_style(self.info_country, "property")
-        self.status_row2.append(self.info_country)
+        self.status_row.append(self.info_country)
 
-
-        self.status_row2 = Gtk.ListBox()
-        #self.status_row2.set_hexpand(True)
-        self.status_row2.set_selection_mode(Gtk.SelectionMode.NONE)
-        self.b1.append(self.status_row2)
+        self.status_row = Gtk.ListBox()
+        self.status_row.set_selection_mode(Gtk.SelectionMode.NONE)
+        self.b1.append(self.status_row)
 
         self.info_rank = Adw.ActionRow()
         self.info_rank.set_subtitle("Trusted User")
         self.info_rank.set_title("Rank")
         self.set_style(self.info_rank, "property")
-        self.status_row2.append(self.info_rank)
+        self.status_row.append(self.info_rank)
 
         self.info_box1.append(self.b1)
 
-        # ------
+        # ----------------------------------------------------
 
 
         style_context = self.get_style_context()
