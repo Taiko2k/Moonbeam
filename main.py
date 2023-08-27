@@ -50,8 +50,39 @@ def extract_filename(url):
 
 COPY_FRIEND_PROPERTIES = [
     "location", "id", "last_platform", "display_name", "user_icon", "status", "status_description", "bio", "is_friend",
-    "last_platform", "current_avatar_thumbnail_image_url"
+    "last_platform", "current_avatar_thumbnail_image_url", "note", "status_description"
 ]
+
+language_emoji_dict = {
+    "language_eng": "🇺🇬🇧",  # English - UK Flag
+    "language_kor": "🇰🇷",  # Korean
+    "language_rus": "🇷🇺",  # Russian
+    "language_spa": "🇪🇸",  # Spanish - Spain flag (but Spanish is spoken in many countries)
+    "language_por": "🇵🇹",  # Portuguese - Portugal flag (also spoken widely in Brazil and other countries)
+    "language_zho": "🇨🇳",  # Chinese - China flag (but also spoken in Taiwan and other places)
+    "language_deu": "🇩🇪",  # German
+    "language_jpn": "🇯🇵",  # Japanese
+    "language_fra": "🇫🇷",  # French
+    "language_swe": "🇸🇪",  # Swedish
+    "language_nld": "🇳🇱",  # Dutch
+    "language_pol": "🇵🇱",  # Polish
+    "language_dan": "🇩🇰",  # Danish
+    "language_nor": "🇳🇴",  # Norwegian
+    "language_ita": "🇮🇹",  # Italian
+    "language_tha": "🇹🇭",  # Thai
+    "language_fin": "🇫🇮",  # Finnish
+    "language_hun": "🇭🇺",  # Hungarian
+    "language_ces": "🇨🇿",  # Czech
+    "language_tur": "🇹🇷",  # Turkish
+    "language_ara": "🇸🇦",  # Arabic - Saudi Arabia flag (but Arabic is spoken in many countries)
+    "language_ron": "🇷🇴",  # Romanian
+    "language_vie": "🇻🇳",  # Vietnamese
+    "language_ase": "🤟",   # American Sign Language - Sign for 'I love you'
+    "language_bfi": "🇬🇧🤟", # British Sign Language - Combining UK flag and the sign
+    "language_dse": "🇳🇱🤟", # Dutch Sign Language - Combining Netherlands flag and the sign
+    "language_fsl": "🇫🇷🤟", # French Sign Language - Combining French flag and the sign
+    "language_kvk": "🇰🇷🤟"  # Korean Sign Language - Combining Korean flag and the sign
+}
 
 RUNNING = True
 
@@ -184,10 +215,6 @@ class VRCZ:
                     if friend:
                         friend.location = "offline"
                 if event.type == "friend-location":
-                    print("-----------")
-                    print(event.content["location"])
-                    print(event.content["travelingToLocation"])
-                    print(event.content["user"])
                     if friend:
                         friend.location = event.content["location"]
 
@@ -259,7 +286,7 @@ class VRCZ:
         if os.path.isfile(DATA_FILE):
             with open(DATA_FILE, 'rb') as file:
                 d = pickle.load(file)
-                print(d)
+                # print(d)
                 if "friends" in d:
                     for k, v in d["friends"].items():
                         friend = Friend(**v)
@@ -320,7 +347,8 @@ class VRCZ:
                 print(t)
                 print(r)
         for key in COPY_FRIEND_PROPERTIES:
-            setattr(t, key, getattr(r, key))
+            if hasattr(r, key):
+                setattr(t, key, getattr(r, key))
         job = Job("download-check-user-icon", t)
         self.jobs.append(job)
         job = Job("download-check-user-avatar-thumbnail", t)
@@ -516,8 +544,8 @@ class VRCZ:
                             with open(key_path, 'wb') as f:
                                 f.write(response.content)
 
-
-            time.sleep(0.1)
+            if not self.jobs:
+                time.sleep(0.1)
 
 
 
@@ -661,22 +689,64 @@ class MainWindow(Adw.ApplicationWindow):
         self.info_box_header = Gtk.Box()
         self.info_box1.append(self.info_box_header)
 
-        self.info_box_header_title = Gtk.Label(label="WIP")
-        self.info_box_header_title.set_selectable(True)
-        self.set_style(self.info_box_header_title, "title-2")
-        self.info_box_header.set_margin_top(6)
-        self.info_box_header.append(self.info_box_header_title)
+        # self.info_box_header_title = Gtk.Label(label="WIP")
+        # self.info_box_header_title.set_selectable(True)
+        # self.set_style(self.info_box_header_title, "title-2")
+        self.info_box_header.set_margin_top(10)
+        # self.info_box_header.append(self.info_box_header_title)
 
         #self.c1.set_child(self.info_list)
         self.c1.set_child(self.info_box1)
+        self.info_box1.append(self.info_list)
+
 
         self.vst1.add_titled_with_icon(self.c1, "info", "Player Info", "user-info-symbolic")
 
+        self.shown_user = None
+
         self.info_name = Adw.ActionRow()
-        self.info_name.set_subtitle("Test")
-        self.info_name.set_title("Test3")
+        self.info_name.set_subtitle("ExampleUser")
+        self.info_name.set_subtitle_selectable(True)
+        self.info_name.set_title("Display Name")
         self.set_style(self.info_name, "property")
         self.info_list.append(self.info_name)
+
+        self.b1 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        self.b1.set_hexpand(True)
+        self.status_row = Gtk.ListBox()
+        self.status_row.set_selection_mode(Gtk.SelectionMode.NONE)
+        self.b1.append(self.status_row)
+
+        self.info_country = Adw.ActionRow()
+        self.info_country.set_subtitle("🇬🇧")
+        self.info_country.set_title("Language")
+        self.set_style(self.info_country, "property")
+        self.status_row.append(self.info_country)
+
+        self.status_row2 = Gtk.ListBox()
+        #self.status_row2.set_hexpand(True)
+        self.status_row2.set_selection_mode(Gtk.SelectionMode.NONE)
+        self.b1.append(self.status_row2)
+
+        self.info_country = Adw.ActionRow()
+        self.info_country.set_subtitle("PC")
+        self.info_country.set_title("Platform")
+        self.set_style(self.info_country, "property")
+        self.status_row2.append(self.info_country)
+
+
+        self.status_row2 = Gtk.ListBox()
+        #self.status_row2.set_hexpand(True)
+        self.status_row2.set_selection_mode(Gtk.SelectionMode.NONE)
+        self.b1.append(self.status_row2)
+
+        self.info_rank = Adw.ActionRow()
+        self.info_rank.set_subtitle("Trusted User")
+        self.info_rank.set_title("Rank")
+        self.set_style(self.info_rank, "property")
+        self.status_row2.append(self.info_rank)
+
+        self.info_box1.append(self.b1)
 
         # ------
 
@@ -889,6 +959,26 @@ class MainWindow(Adw.ApplicationWindow):
         # self.user_window.set_modal(True)
         # self.user_window.set_destroy_with_parent(True)
         # self.user_window.show()
+        self.hand_cursor = Gdk.Cursor.new_from_name("pointer")
+        self.css_provider = Gtk.CssProvider()
+        self.css_provider.load_from_string('''
+            button {
+                background: none;
+                border: none;
+                padding: 0;
+                margin-top: 0
+                margin-button: 0
+                outline: none;
+            }
+            button:hover {
+                border: none;
+                outline: none;
+            }
+
+        ''')
+    def set_button_as_label(self, button):  # remove me
+        style_context = button.get_style_context()
+        style_context.add_provider(self.css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
     def set_style(self, target, name):
         style_context = target.get_style_context()
@@ -931,13 +1021,15 @@ class MainWindow(Adw.ApplicationWindow):
                     key_path = os.path.join(USER_ICON_CACHE, key)
                     row.mini_icon_filepath = key_path
 
+    def click_user(self, button, user):
+        print(user)
 
     def heartbeat(self):
         update_friend_list = False
         update_friend_rows = False
         while vrcz.posts:
             post = vrcz.posts.pop(0)
-            print("post")
+            #print("post")
             print(post.name)
             if post.name == "update-friend-list":
                 update_friend_list = True
@@ -961,8 +1053,6 @@ class MainWindow(Adw.ApplicationWindow):
                     box.set_margin_bottom(3)
                     print(event.type)
 
-
-                    #label = Gtk.Label(label=post.data.type)
                     label = Gtk.Label(label=format_time(event.timestamp))
                     self.set_style(label, "dim-label")
                     label.set_margin_end(5)
@@ -977,8 +1067,16 @@ class MainWindow(Adw.ApplicationWindow):
                             label.set_markup(f"<span weight=\"bold\">{user.display_name}</span>")
                             self.set_style(label, "dim-label")
 
-                        label.set_margin_end(5)
-                        box.append(label)
+
+                        b = Gtk.Button()
+                        b.connect("clicked", self.click_user, user)
+                        b.set_cursor(self.hand_cursor)
+                        b.set_child(label)
+
+                        self.set_button_as_label(b)
+
+                        b.set_margin_end(5)
+                        box.append(b)
 
                         if event.type == "friend-online":
                             label = Gtk.Label()
