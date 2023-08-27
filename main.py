@@ -677,34 +677,46 @@ class MainWindow(Adw.ApplicationWindow):
 
 
         # ------------------ Info page
-        self.info_list = Gtk.ListBox()
-        self.info_list.set_selection_mode(Gtk.SelectionMode.NONE)
 
-        self.c1 = Adw.Clamp()
-        self.vst1.add_titled_with_icon(self.c1, "info", "Player Info", "user-info-symbolic")
+        self.info_box_clamp = Adw.Clamp()
+        self.vst1.add_titled_with_icon(self.info_box_clamp, "info", "Player Info", "user-info-symbolic")
 
-        self.info_box1 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.info_box_holder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.info_box_clamp.set_child(self.info_box_holder)
 
+        # Just empty space right now
         self.info_box_header = Gtk.Box()
-        self.info_box1.append(self.info_box_header)
-
+        self.info_box_holder.append(self.info_box_header)
         self.info_box_header.set_margin_top(10)
 
-        self.c1.set_child(self.info_box1)
-        self.info_box1.append(self.info_list)
+        self.row1and2 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.row1and2.set_hexpand(True)
+
+        self.row1and2andpic = Gtk.Box()
+        self.row1and2andpic.append(self.row1and2)
+
+        self.info_box_holder.append(self.row1and2andpic)
+
+        self.row1 = Gtk.ListBox()
+        self.row1and2.append(self.row1)
+        self.row1.set_selection_mode(Gtk.SelectionMode.NONE)
+
+        #self.info_box_holder.append(self.row1)
+        self.row1and2.append(self.row1and2)
 
         self.info_name = Adw.ActionRow()
         self.info_name.set_subtitle("ExampleUser")
         self.info_name.set_subtitle_selectable(True)
         self.info_name.set_title("Display Name")
         self.set_style(self.info_name, "property")
-        self.info_list.append(self.info_name)
+        self.row1.append(self.info_name)
 
-        self.b1 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
-        self.b1.set_hexpand(True)
+        self.row2 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        self.row2.set_hexpand(True)
+        self.row1and2.append(self.row2)
         self.status_row = Gtk.ListBox()
         self.status_row.set_selection_mode(Gtk.SelectionMode.NONE)
-        self.b1.append(self.status_row)
+        self.row2.append(self.status_row)
 
         self.info_country = Adw.ActionRow()
         self.info_country.set_subtitle("🇬🇧")
@@ -713,19 +725,18 @@ class MainWindow(Adw.ApplicationWindow):
         self.status_row.append(self.info_country)
 
         self.status_row = Gtk.ListBox()
-        #self.status_row2.set_hexpand(True)
         self.status_row.set_selection_mode(Gtk.SelectionMode.NONE)
-        self.b1.append(self.status_row)
+        self.row2.append(self.status_row)
 
-        self.info_country = Adw.ActionRow()
-        self.info_country.set_subtitle("PC")
-        self.info_country.set_title("Platform")
-        self.set_style(self.info_country, "property")
-        self.status_row.append(self.info_country)
+        self.info_platform = Adw.ActionRow()
+        self.info_platform.set_subtitle("PC")
+        self.info_platform.set_title("Platform")
+        self.set_style(self.info_platform, "property")
+        self.status_row.append(self.info_platform)
 
         self.status_row = Gtk.ListBox()
         self.status_row.set_selection_mode(Gtk.SelectionMode.NONE)
-        self.b1.append(self.status_row)
+        self.row2.append(self.status_row)
 
         self.info_rank = Adw.ActionRow()
         self.info_rank.set_subtitle("Trusted User")
@@ -733,7 +744,8 @@ class MainWindow(Adw.ApplicationWindow):
         self.set_style(self.info_rank, "property")
         self.status_row.append(self.info_rank)
 
-        self.info_box1.append(self.b1)
+
+        #self.info_box_holder.append(self.row2)
 
         # ----------------------------------------------------
 
@@ -953,8 +965,8 @@ class MainWindow(Adw.ApplicationWindow):
                 background: none;
                 border: none;
                 padding: 0;
-                margin-top: 0
-                margin-button: 0
+                margin-top; 0
+                margin-button; 0
                 outline: none;
             }
             button:hover {
