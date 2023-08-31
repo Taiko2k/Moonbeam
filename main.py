@@ -145,6 +145,8 @@ class LogReader:
         Returns the latest log file based on naming.
         """
         files = [f for f in os.listdir(self.directory) if f.startswith("output_log_")]
+        print("get latest")
+        print(files)
         files.sort(reverse=True)
         return files[0] if files else None
 
@@ -175,20 +177,21 @@ class LogReader:
         if not self.current_file:
             return []
 
-        with open(os.path.join(self.directory, self.current_file), 'r') as f:
+        with open(os.path.join(self.directory, self.current_file), 'rb') as f:
+            #self.last_position = 0
             f.seek(self.last_position)
             content = f.read()
-            logs = content.split("\n\n\r\n")
+            logs = content.split(b"\n\n\r\n")
 
             # If the file's content ends with `\n\n\r\n`, then it indicates a complete log.
-            if content.endswith("\n\n\r\n"):
+            if content.endswith(b"\n\n\r\n"):
                 new_logs.extend(logs)
                 self.last_position += len(content)
             else:
                 # If there's more than one chunk, the last chunk might be incomplete. We'll read it next time.
                 if len(logs) > 1:
                     new_logs.extend(logs[:-1])
-                    self.last_position += len("\n\n\r\n".join(logs[:-1])) + len(logs[-1])
+                    self.last_position += len(b"\n\n\r\n".join(logs[:-1])) + len(logs[-1])
                 else:
                     self.last_position += len(logs[0])
 
@@ -306,10 +309,21 @@ class VRCZ:
 
 
     def update_from_log(self):
-        print("READ LOG FILE")
         if self.log_reader:
             for log in self.log_reader.read_new_logs():
                 print(log)
+                if b"[Video Playback] Attempting to resolve URL '" in log:
+                    URL = log.split('\'')[-2].decode("utf-8").strip()
+                    print("Found video URL")
+                    print(URL)
+                if b"[USharpVideo] Started video load for URL: " in log:
+                    URL = log.split(":")[-1]
+                    URL, RQ = URL.split(",")
+                    URL = URL.strip()
+                    RQ = RQ.split("by")
+                    RQ = RQ.strip()
+                    print("Found video URL")
+                    print((URL, RQ))
 
     def process_event(self, event):
         #bm2
@@ -1135,6 +1149,8 @@ class MainWindow(Adw.ApplicationWindow):
                 rank = "Known User"
             if "system_trust_veteran" in p.tags:
                 rank = "Trusted User"
+        else:
+            rank = "Unknown"
         self.info_rank.set_subtitle(rank)
 
 
