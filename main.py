@@ -50,11 +50,11 @@ def extract_filename(url):
 
 COPY_FRIEND_PROPERTIES = [
     "location", "id", "last_platform", "display_name", "user_icon", "status", "status_description", "bio", "is_friend",
-    "last_platform", "current_avatar_thumbnail_image_url", "note", "status_description"
+    "last_platform", "current_avatar_thumbnail_image_url", "note", "status_description", "tags"
 ]
 
 language_emoji_dict = {
-    "language_eng": "🇺🇬🇧",  # English - UK Flag
+    "language_eng": "🇬🇧",  # English - UK Flag
     "language_kor": "🇰🇷",  # Korean
     "language_rus": "🇷🇺",  # Russian
     "language_spa": "🇪🇸",  # Spanish - Spain flag (but Spanish is spoken in many countries)
@@ -77,12 +77,40 @@ language_emoji_dict = {
     "language_ara": "🇸🇦",  # Arabic - Saudi Arabia flag (but Arabic is spoken in many countries)
     "language_ron": "🇷🇴",  # Romanian
     "language_vie": "🇻🇳",  # Vietnamese
-    "language_ase": "🤟",   # American Sign Language - Sign for 'I love you'
+    "language_ase": "🇺🇸🤟",   # American Sign Language - Sign for 'I love you'
     "language_bfi": "🇬🇧🤟", # British Sign Language - Combining UK flag and the sign
     "language_dse": "🇳🇱🤟", # Dutch Sign Language - Combining Netherlands flag and the sign
     "language_fsl": "🇫🇷🤟", # French Sign Language - Combining French flag and the sign
     "language_kvk": "🇰🇷🤟"  # Korean Sign Language - Combining Korean flag and the sign
 }
+
+
+class Timer:
+    def __init__(self, force=None):
+        self.start = 0
+        self.end = 0
+        self.set()
+        if force:
+            self.force_set(force)
+
+    def set(self):  # Reset
+        self.start = time.monotonic()
+
+    def hit(self):  # Return time and reset
+
+        self.end = time.monotonic()
+        elapsed = self.end - self.start
+        self.start = time.monotonic()
+        return elapsed
+
+    def get(self):  # Return time only
+        self.end = time.monotonic()
+        return self.end - self.start
+
+    def force_set(self, sec):
+        self.start = time.monotonic()
+        self.start -= sec
+
 
 RUNNING = True
 
@@ -103,6 +131,69 @@ def format_time(t):
     return formatted_time
 
 
+import os
+
+
+class LogReader:
+    def __init__(self, directory):
+        self.directory = directory
+        self.current_file = self._get_latest_log_file()
+        self.last_position = self._set_initial_position()
+
+    def _get_latest_log_file(self):
+        """
+        Returns the latest log file based on naming.
+        """
+        files = [f for f in os.listdir(self.directory) if f.startswith("output_log_")]
+        files.sort(reverse=True)
+        return files[0] if files else None
+
+    def _set_initial_position(self):
+        """
+        Set the initial position to the end of the file.
+        """
+        if not self.current_file:
+            return 0
+
+        with open(os.path.join(self.directory, self.current_file), 'r') as f:
+            f.seek(0, os.SEEK_END)
+            return f.tell()
+
+    def read_new_logs(self):
+        """
+        Check and return new log lines.
+        Also, check for a newer log file.
+        """
+        new_logs = []
+
+        # Check for a newer file
+        latest_file = self._get_latest_log_file()
+        if latest_file != self.current_file:
+            self.current_file = latest_file
+            self.last_position = 0
+
+        if not self.current_file:
+            return []
+
+        with open(os.path.join(self.directory, self.current_file), 'r') as f:
+            f.seek(self.last_position)
+            content = f.read()
+            logs = content.split("\n\n\r\n")
+
+            # If the file's content ends with `\n\n\r\n`, then it indicates a complete log.
+            if content.endswith("\n\n\r\n"):
+                new_logs.extend(logs)
+                self.last_position += len(content)
+            else:
+                # If there's more than one chunk, the last chunk might be incomplete. We'll read it next time.
+                if len(logs) > 1:
+                    new_logs.extend(logs[:-1])
+                    self.last_position += len("\n\n\r\n".join(logs[:-1])) + len(logs[-1])
+                else:
+                    self.last_position += len(logs[0])
+
+        return new_logs
+
 class FriendRow(GObject.Object):
     name = GObject.Property(type=str, default='')
     status = GObject.Property(type=int, default=0)
@@ -114,6 +205,7 @@ class FriendRow(GObject.Object):
         self.mini_icon_filepath = None
         self.status = 0
         self.is_user = False
+        self.id = None
 
 class Friend():
     def __init__(self, **kwargs):
@@ -196,10 +288,28 @@ class VRCZ:
         self.auth_api = authentication_api.AuthenticationApi(self.api_client)
         self.cookie_file_path = 'cookie_data'
 
+        self.log_file_timer = Timer()
+
         self.jobs = []
         self.posts = []
 
         self.events = []
+
+        self.log_reader = None
+        self.log_dir = os.path.expanduser("~/.local/share/Steam/steamapps/compatdata/438100/pfx/drive_c/users/steamuser/AppData/LocalLow/VRChat/VRChat")
+        print(self.log_dir)
+        if os.path.isdir(self.log_dir):
+            print("VRCHAT Data folder found!")
+            self.log_reader = LogReader(self.log_dir)
+        else:
+            print("VRCHAT Data folder NOT found")
+
+
+    def update_from_log(self):
+        print("READ LOG FILE")
+        if self.log_reader:
+            for log in self.log_reader.read_new_logs():
+                print(log)
 
     def process_event(self, event):
         #bm2
@@ -439,6 +549,10 @@ class VRCZ:
 
     def worker(self):
         while RUNNING:
+            if self.log_file_timer.get() > 5:
+                self.log_file_timer.set()
+                self.update_from_log()
+
             if self.jobs:
                 job = self.jobs.pop(0)
                 print("doing job")
@@ -753,10 +867,7 @@ class MainWindow(Adw.ApplicationWindow):
         style_context = self.get_style_context()
         style_context.add_class('devel')
 
-
-
         #self.set_titlebar()
-
 
         # Friend list box
         self.friend_list_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -772,13 +883,16 @@ class MainWindow(Adw.ApplicationWindow):
         self.friend_list_scroll.set_child(self.friend_list_view)
         self.friend_list_box.append(self.friend_list_scroll)
         self.friend_ls = Gio.ListStore(item_type=FriendRow)
+        self.friend_ls_dict = {}
 
-        ss = Gtk.SingleSelection()
-        ss.set_model(self.friend_ls)
-        self.friend_list_view.set_model(ss)
+        self.ss = Gtk.SingleSelection()
+        self.ss.set_model(self.friend_ls)
+        self.friend_list_view.set_model(self.ss)
 
         factory = Gtk.SignalListItemFactory()
 
+        self.ss.connect("selection-changed", self.on_selected_friend_changed)
+        self.friend_list_view.connect("activate", self.on_selected_friend_click)
         def f_setup(fact, item):
 
             holder = Gtk.Box()
@@ -982,6 +1096,58 @@ class MainWindow(Adw.ApplicationWindow):
     def set_style(self, target, name):
         style_context = target.get_style_context()
         style_context.add_class(name)
+
+    def set_profie_view(self, id):
+        print("Set profile view")
+        if id == vrcz.user_object.id:
+            p = vrcz.user_object
+        elif id in vrcz.friend_objects:
+            p = vrcz.friend_objects[id]
+        else:
+            print("Need to get user data")
+            return
+
+        self.info_name.set_subtitle(p.display_name)
+        lang_line = " "
+        if p.tags:
+            for tag in p.tags:
+                if tag in language_emoji_dict:
+                    flag = language_emoji_dict.get(tag)
+                    lang_line += flag + "  "
+        self.info_country.set_subtitle(lang_line)
+
+        platform = ""
+        if p.last_platform == "standalonewindows":
+            platform = "PC"
+        elif p.last_platform == "android":
+            platform = "Android/Quest"
+        elif p.last_platform:
+            platform = p.last_platform
+        self.info_platform.set_subtitle(platform)
+
+        rank = "Visitor"
+        if p.tags:
+            if "system_trust_basic" in p.tags:
+                rank = "New User"
+            if "system_trust_known" in p.tags:
+                rank = "User"
+            if "system_trust_trusted" in p.tags:
+                rank = "Known User"
+            if "system_trust_veteran" in p.tags:
+                rank = "Trusted User"
+        self.info_rank.set_subtitle(rank)
+
+
+    def on_selected_friend_click(self, view, n):
+        selected_item = self.ss.get_selected_item()
+        if selected_item is not None:
+            self.set_profie_view(selected_item.id)
+        self.vst1.set_visible_child_name("info")
+    def on_selected_friend_changed(self, selection, position, n_items):
+        selected_item = selection.get_selected_item()
+        if selected_item is not None:
+            self.set_profie_view(selected_item.id)
+
     def set_friend_row_data(self, id):
 
         row = self.friend_data.get(id)
@@ -1153,24 +1319,21 @@ class MainWindow(Adw.ApplicationWindow):
 
     def update_friend_list(self):
 
-        self.friend_ls.remove_all()
-        #print(vrcz.friend_objects)
-        if vrcz.user_object:
-            if vrcz.user_object.id not in self.friend_data:
-                fd = FriendRow()
-                fd.is_user = True
-                self.friend_data[vrcz.user_object.id] = fd
-            fd = self.friend_data[vrcz.user_object.id]
+        if vrcz.user_object and vrcz.user_object.id not in self.friend_data:
+            fd = FriendRow()
+            fd.is_user = True
+            fd.id = vrcz.user_object.id
+            self.friend_data[vrcz.user_object.id] = fd
             self.set_friend_row_data(vrcz.user_object.id)
             self.friend_ls.append(fd)
 
         for k, v in vrcz.friend_objects.items():
             if k not in self.friend_data:
                 fd = FriendRow()
+                fd.id = k
                 self.friend_data[k] = fd
-            fd = self.friend_data[k]
-            self.set_friend_row_data(k)
-            self.friend_ls.append(fd)
+                self.set_friend_row_data(k)
+                self.friend_ls.append(fd)
 
         def get_weight(row):
             if row.is_user:
