@@ -145,8 +145,6 @@ class LogReader:
         Returns the latest log file based on naming.
         """
         files = [f for f in os.listdir(self.directory) if f.startswith("output_log_")]
-        print("get latest")
-        print(files)
         files.sort(reverse=True)
         return files[0] if files else None
 
@@ -786,6 +784,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.set_title(APP_TITLE)
 
         self.nav = Adw.NavigationSplitView()
+        self.nav.set_max_sidebar_width(220)
         self.set_content(self.nav)
         self.header = Adw.HeaderBar()
         self.n1 = Adw.NavigationPage()
@@ -885,7 +884,7 @@ class MainWindow(Adw.ApplicationWindow):
 
         # Friend list box
         self.friend_list_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        self.friend_list_box.set_size_request(220, -1)
+        #self.friend_list_box.set_size_request(150, -1)
         #self.outer_box.append(self.friend_list_box)
 
         self.n0.set_child(self.friend_list_box)
@@ -915,7 +914,7 @@ class MainWindow(Adw.ApplicationWindow):
             holder.set_margin_start(4)
 
             icon = UserIconDisplay()
-            icon.set_size_request(43, 43)
+            icon.set_size_request(37, 37)
             holder.append(icon)
 
             # image = Gtk.Image()
