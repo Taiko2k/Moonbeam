@@ -50,7 +50,7 @@ def extract_filename(url):
 
 COPY_FRIEND_PROPERTIES = [
     "location", "id", "last_platform", "display_name", "user_icon", "status", "status_description", "bio", "is_friend",
-    "last_platform", "current_avatar_thumbnail_image_url", "note", "status_description", "tags"
+    "last_platform", "current_avatar_thumbnail_image_url", "note", "status_description", "tags", "profile_pic_override"
 ]
 
 language_emoji_dict = {
@@ -216,6 +216,13 @@ class Friend():
             setattr(self, item, None)
         for key, value in kwargs.items():
             setattr(self, key, value)
+
+    def get_banner_url(self):
+        if hasattr(self, "profile_pic_override") and self.profile_pic_override:
+            return self.profile_pic_override
+        if hasattr(self, "current_avatar_thumbnail_image_url") and self.current_avatar_thumbnail_image_url:
+            return self.current_avatar_thumbnail_image_url
+        return ""
 
 
 class Job:
@@ -673,6 +680,22 @@ class VRCZ:
                             with open(key_path, 'wb') as f:
                                 f.write(response.content)
 
+                if job.name == "download-check-user-banner":
+                    v = job.data
+                    URL = v.get_banner_url()
+                    if URL:
+                        key = extract_filename(URL)
+                        key_path = os.path.join(USER_ICON_CACHE, key)
+                        if key not in os.listdir(USER_ICON_CACHE):
+                            response = requests.get(URL, headers=REQUEST_DL_HEADER)
+                            time.sleep(0.1)
+                            with open(key_path, 'wb') as f:
+                                f.write(response.content)
+                    job = Job("check-user-info-banner")
+                    job.data = v
+                    self.posts.append(job)
+
+
                 if job.name == "download-check-user-avatar-thumbnail":
 
                     v = job.data
@@ -688,7 +711,7 @@ class VRCZ:
                             print("download icon")
 
                             response = requests.get(v.current_avatar_thumbnail_image_url, headers=REQUEST_DL_HEADER)
-                            time.sleep(0.5)
+                            time.sleep(0.1)
                             with open(key_path, 'wb') as f:
                                 f.write(response.content)
 
@@ -831,18 +854,32 @@ class MainWindow(Adw.ApplicationWindow):
         self.vst1.add_titled_with_icon(self.info_box_clamp, "info", "Player Info", "user-info-symbolic")
 
         self.info_box_holder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        self.info_box_clamp.set_child(self.info_box_holder)
+        self.set_style(self.info_box_holder, "view")
 
-        # Just empty space right now
-        self.info_box_header = Gtk.Box()
-        self.info_box_holder.append(self.info_box_header)
-        self.info_box_header.set_margin_top(10)
+        self.info_box_outer_holder = Gtk.Box()
+        self.info_box_clamp.set_child(self.info_box_outer_holder)
+        self.info_box_outer_holder.append(self.info_box_holder)
+
+        self.info_box_holder.set_margin_top(10)
+
+        # self.info_box_footer = Gtk.Box()
+        # self.info_box_footer.set_hexpand(True)
+        # self.info_box_outer_holder.append(self.info_box_footer)
+
+        # # Just empty space right now
+        # self.info_box_header = Gtk.Box()
+        # self.info_box_holder.append(self.info_box_header)
+        # self.info_box_header.set_margin_top(10)
 
         self.row1and2 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.row1and2.set_hexpand(True)
 
         self.row1and2andpic = Gtk.Box()
         self.row1and2andpic.append(self.row1and2)
+
+        self.banner = Gtk.Image()
+        self.banner.set_size_request(170, 130)
+        self.row1and2andpic.append(self.banner)
 
         self.info_box_holder.append(self.row1and2andpic)
 
@@ -1101,7 +1138,6 @@ class MainWindow(Adw.ApplicationWindow):
 
         self.update_friend_list()
 
-        GLib.timeout_add(900, self.heartbeat)
 
         # self.user_window = UserInfoWindow()
         # self.user_window.set_transient_for(self)
@@ -1123,6 +1159,12 @@ class MainWindow(Adw.ApplicationWindow):
             }
 
         ''')
+
+        self.selected_user_info = None
+
+        GLib.timeout_add(900, self.heartbeat)
+
+
     def set_button_as_label(self, button):  # remove me
         style_context = button.get_style_context()
         style_context.add_provider(self.css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
@@ -1132,6 +1174,7 @@ class MainWindow(Adw.ApplicationWindow):
         style_context.add_class(name)
 
     def set_profie_view(self, id):
+
         print("Set profile view")
         if id == vrcz.user_object.id:
             p = vrcz.user_object
@@ -1140,6 +1183,22 @@ class MainWindow(Adw.ApplicationWindow):
         else:
             print("Need to get user data")
             return
+
+        self.selected_user_info = p
+
+        URL = p.get_banner_url()
+        if URL:
+            key = extract_filename(URL)
+            key_path = os.path.join(USER_ICON_CACHE, key)
+            if os.path.isfile(key_path):
+                self.banner.set_from_file(key_path)
+            else:
+                self.banner.set_from_icon_name("image-loading-symbolic")
+                job = Job("download-check-user-banner")
+                job.data = p
+                vrcz.jobs.append(job)
+        else:
+            self.banner.set_from_file(None)
 
         self.info_name.set_subtitle(p.display_name)
         lang_line = " "
@@ -1233,6 +1292,15 @@ class MainWindow(Adw.ApplicationWindow):
             #print("post")
             print(post.name)
 
+            if post.name == "check-user-info-banner":
+                if self.selected_user_info and self.selected_user_info == post.data:
+                    URL = self.selected_user_info.get_banner_url()
+                    key = extract_filename(URL)
+                    key_path = os.path.join(USER_ICON_CACHE, key)
+                    if URL and os.path.isfile(key_path):
+                        self.banner.set_from_file(key_path)
+                    else:
+                        self.banner.set_from_file(None)
             if post.name == "update-friend-list":
                 update_friend_list = True
             if post.name == "update-friend-rows":
