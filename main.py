@@ -179,6 +179,8 @@ class LogReader:
             #self.last_position = 0
             f.seek(self.last_position)
             content = f.read()
+            if not content:
+                return []
             logs = content.split(b"\n\n\r\n")
 
             # If the file's content ends with `\n\n\r\n`, then it indicates a complete log.
@@ -224,7 +226,7 @@ class Job:
 test = Job("a", "b")
 
 class Event:
-    def __init__(self, type="", content=""):
+    def __init__(self, type="", content=None):
         self.timestamp = 0
         self.type = type
         self.subject = ""
@@ -308,20 +310,34 @@ class VRCZ:
 
     def update_from_log(self):
         if self.log_reader:
+            got_urls = []
             for log in self.log_reader.read_new_logs():
                 print(log)
                 if b"[Video Playback] Attempting to resolve URL '" in log:
-                    URL = log.split('\'')[-2].decode("utf-8").strip()
+                    URL = log.split(b'\'')[-2].strip()
+                    if URL in got_urls:
+                        continue
                     print("Found video URL")
                     print(URL)
-                if b"[USharpVideo] Started video load for URL: " in log:
-                    URL = log.split(":")[-1]
-                    URL, RQ = URL.split(",")
+                    event = Event(type="video", content=(URL.decode("utf-8"), ""))
+                    event.timestamp = time.time()
+                    self.events.append(event)
+                    job = Job(name="event", data=event)
+                    self.posts.append(job)
+                if b"[USharpVideo] Started video load for URL:" in log:
+                    URL = log.split(b"URL:")[-1]
+                    URL, RQ = URL.split(b",")
                     URL = URL.strip()
-                    RQ = RQ.split("by")
+                    got_urls.append(URL)
+                    RQ = RQ.split(b"by")[1]
                     RQ = RQ.strip()
                     print("Found video URL")
                     print((URL, RQ))
+                    event = Event(type="video", content=(URL.decode("utf-8"), RQ.decode("utf-8")))
+                    event.timestamp = time.time()
+                    self.events.append(event)
+                    job = Job(name="event", data=event)
+                    self.posts.append(job)
 
     def process_event(self, event):
         #bm2
@@ -415,6 +431,11 @@ class VRCZ:
                         self.friend_objects[k] = friend
                 if "self" in d:
                     self.user_object = Friend(**d["self"])
+                if "events" in d:
+                    self.events.extend(d["events"])
+                    for e in self.events:
+                        job = Job(name="event", data=e)
+                        self.posts.append(job)
 
 
     def save_app_data(self):
@@ -426,6 +447,7 @@ class VRCZ:
 
         d["friends"] = friends
         d["self"] = self.user_object.__dict__
+        d["events"] = self.events
         with open(DATA_FILE, 'wb') as file:
             pickle.dump(d, file)
 
@@ -561,7 +583,7 @@ class VRCZ:
 
     def worker(self):
         while RUNNING:
-            if self.log_file_timer.get() > 5:
+            if self.log_file_timer.get() > 10:
                 self.log_file_timer.set()
                 self.update_from_log()
 
@@ -963,6 +985,7 @@ class MainWindow(Adw.ApplicationWindow):
 
         self.event_box_holder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.c4 = Adw.Clamp()
+        self.c4.set_maximum_size(1000)
         self.c4.set_child(self.event_box_holder)
         self.vst1.add_titled_with_icon(self.c4, "event", "Event Log", "find-location-symbolic")
 
@@ -1092,8 +1115,6 @@ class MainWindow(Adw.ApplicationWindow):
                 background: none;
                 border: none;
                 padding: 0;
-                margin-top; 0
-                margin-button; 0
                 outline: none;
             }
             button:hover {
@@ -1211,6 +1232,7 @@ class MainWindow(Adw.ApplicationWindow):
             post = vrcz.posts.pop(0)
             #print("post")
             print(post.name)
+
             if post.name == "update-friend-list":
                 update_friend_list = True
             if post.name == "update-friend-rows":
@@ -1218,25 +1240,54 @@ class MainWindow(Adw.ApplicationWindow):
             if post.name == "event":
                 # bm1
                 event = post.data
+
+                if event.type == "friend-active":
+                    continue
+                if event.type == "friend-update":
+                    continue
+
+                box = Gtk.Box()
+                box.set_margin_bottom(0)
+                print(event.type)
+
+
+                label = Gtk.Label(label=format_time(event.timestamp))
+                self.set_style(label, "dim-label")
+                self.set_style(label, "monospace")
+                label.set_margin_end(3)
+                label.set_size_request(70, -1)
+                label.set_xalign(0)
+                box.append(label)
+
+
+                if event.type == "video":
+                    URL, RQ = event.content
+                    label = Gtk.Label()
+                    label.set_markup(f"Video play")
+                    box.append(label)
+
+                    print(URL)
+                    lb = Gtk.LinkButton.new(URL)
+                    lb.set_margin_end(5)
+                    lb.set_margin_start(5)
+                    self.set_button_as_label(lb)
+
+                    box.append(lb)
+
+                    if RQ:
+                        label = Gtk.Label()
+                        label.set_markup(f"by {RQ}")
+                        label.set_margin_end(5)
+                        box.append(label)
+
+                    self.event_box.prepend(box)
+
+
                 if event.type.startswith("friend-"):
-                    if event.type == "friend-active":
-                        continue
-                    if event.type == "friend-update":
-                        continue
                     if self.events_empty:
                         self.events_empty = False
                         self.event_box_holder.remove(self.events_empty_status)
                         self.event_box_holder.append(self.event_scroll)
-
-
-                    box = Gtk.Box()
-                    box.set_margin_bottom(3)
-                    print(event.type)
-
-                    label = Gtk.Label(label=format_time(event.timestamp))
-                    self.set_style(label, "dim-label")
-                    label.set_margin_end(5)
-                    box.append(label)
 
                     user = event.subject
                     if user:
@@ -1246,7 +1297,6 @@ class MainWindow(Adw.ApplicationWindow):
                         else:
                             label.set_markup(f"<span weight=\"bold\">{user.display_name}</span>")
                             self.set_style(label, "dim-label")
-
 
                         b = Gtk.Button()
                         b.connect("clicked", self.click_user, user)
@@ -1329,8 +1379,10 @@ class MainWindow(Adw.ApplicationWindow):
         vrcz.posts.append(job)
 
     def test3(self, button):
+        button.set_sensitive(False)
         if vrcz.update():
             self.login_box.set_visible(True)
+
 
     def update_friend_list(self):
 
@@ -1429,5 +1481,6 @@ class MOONBEAM(Adw.Application):
 
 app = MOONBEAM(application_id="com.github.taiko2k.moonbeam")
 app.run(sys.argv)
+vrcz.save_app_data()
 RUNNING = False
 time.sleep(1)
