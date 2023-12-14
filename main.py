@@ -32,7 +32,6 @@ REQUEST_DL_HEADER = {
     'User-Agent': USER_AGENT,
 }
 
-AUTH_FILE = 'auth_data.pkl'
 DATA_FILE = 'user_data.pkl'
 USER_ICON_CACHE = "cache/avatar1"
 
@@ -131,7 +130,6 @@ def format_time(t):
     return formatted_time
 
 
-import os
 
 
 class LogReader:
@@ -199,12 +197,14 @@ class LogReader:
 
 class FriendRow(GObject.Object):
     name = GObject.Property(type=str, default='')
+    location = GObject.Property(type=str, default='')
     status = GObject.Property(type=int, default=0)
     mini_icon_filepath = GObject.Property(type=str, default='')
 
     def __init__(self):
         super().__init__()
         self.name = ""
+        self.location = ""
         self.mini_icon_filepath = None
         self.status = 0
         self.is_user = False
@@ -291,6 +291,7 @@ class VRCZ:
         self.friend_objects = {}
         self.user_object = None
         self.web_thread = None
+        self.last_status = ""
 
         self.error_log = []  # in event of any error, append human-readable string explaining error
         self.api_client = vrchatapi.ApiClient()
@@ -410,6 +411,10 @@ class VRCZ:
         ws.run_forever()
         print("Leave websocket thread")
 
+    def delete_cookies(self):
+        if os.path.isfile(self.cookie_file_path):
+            os.remove(self.cookie_file_path)
+
     def save_cookies(self):
         cookie_jar = LWPCookieJar(filename=self.cookie_file_path)
         for cookie in self.api_client.rest_client.cookie_jar:
@@ -417,14 +422,16 @@ class VRCZ:
         cookie_jar.save()
 
     def load_cookies(self):
-        cookie_jar = LWPCookieJar(self.cookie_file_path)
-        try:
-            cookie_jar.load()
-        except FileNotFoundError:
-            cookie_jar.save()
-            return
-        for cookie in cookie_jar:
-            self.api_client.rest_client.cookie_jar.set_cookie(cookie)
+        if os.path.isfile(self.cookie_file_path):
+            vrcz.logged_in = True
+            cookie_jar = LWPCookieJar(self.cookie_file_path)
+            try:
+                cookie_jar.load()
+            except FileNotFoundError:
+                cookie_jar.save()
+                return
+            for cookie in cookie_jar:
+                self.api_client.rest_client.cookie_jar.set_cookie(cookie)
 
     def load_app_data(self):  # Run on application start
         self.load_cookies()
@@ -446,7 +453,8 @@ class VRCZ:
 
 
     def save_app_data(self):
-        self.save_cookies()
+        if self.logged_in:
+            self.save_cookies()
         d = {}
         friends = {}
         for k, v in self.friend_objects.items():
@@ -458,10 +466,10 @@ class VRCZ:
         with open(DATA_FILE, 'wb') as file:
             pickle.dump(d, file)
 
-
     def sign_in_step1(self, username, password):
         self.api_client.configuration.username = username
         self.api_client.configuration.password = password
+        self.last_status = ""
 
         try:
             user = self.auth_api.get_current_user()
@@ -469,11 +477,12 @@ class VRCZ:
             self.current_user_name = user.display_name
         except UnauthorizedException as e:
             if "2 Factor Authentication" in e.reason:
-                print("2FA required. Please provide the code sent to your email.")
+                self.last_status = "2FA required. Please provide the code sent to your email."
                 return
             else:
                 print(f"Error during authentication: {e}")
                 self.error_log.append(f"Error during authentication: {e}")
+                self.last_status = "Authorization error. Check username and password."
                 raise
 
     def sign_in_step2(self, email_code):
@@ -582,10 +591,8 @@ class VRCZ:
 
     def logout(self):
         print("Logout")
-
-        if os.path.exists(AUTH_FILE):
-            os.remove(AUTH_FILE)
-
+        self.logged_in = False
+        self.delete_cookies()
         self.__init__()
 
     def worker(self):
@@ -623,7 +630,7 @@ class VRCZ:
                         if len(next) < n:
                             break
                         print("COOLDOWN")
-                        time.sleep(10)
+                        time.sleep(2)
 
                     self.save_app_data()
                     job = Job("update-friend-rows")
@@ -634,7 +641,7 @@ class VRCZ:
                 if job.name == "refresh-friend-db":
                     friends_api_instance = friends_api.FriendsApi(self.api_client)
                     print("COOLDOWN")
-                    time.sleep(3)
+                    time.sleep(2)
                     n = 100
                     offset = 0
                     while True:
@@ -652,7 +659,7 @@ class VRCZ:
                             break
                         print("COOLDOWN")
 
-                        time.sleep(10)
+                        time.sleep(2)
 
                     self.save_app_data()
                     job = Job("update-friend-rows")
@@ -676,7 +683,7 @@ class VRCZ:
                             print("download icon")
 
                             response = requests.get(v.user_icon, headers=REQUEST_DL_HEADER)
-                            time.sleep(0.5)
+                            time.sleep(0.1)
                             with open(key_path, 'wb') as f:
                                 f.write(response.content)
 
@@ -878,7 +885,18 @@ class MainWindow(Adw.ApplicationWindow):
         self.row1and2andpic.append(self.row1and2)
 
         self.banner = Gtk.Image()
-        self.banner.set_size_request(170, 130)
+        self.banner.set_size_request(220, 150)
+
+        # box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        # box.append(self.banner)
+        # box2 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        # box2.set_vexpand(True)
+        # box.append(box2)
+        #
+        # box3 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        # box2.set_hexpand(True)
+        #
+        # self.row1and2andpic.append(box3)
         self.row1and2andpic.append(self.banner)
 
         self.info_box_holder.append(self.row1and2andpic)
@@ -968,12 +986,12 @@ class MainWindow(Adw.ApplicationWindow):
         def f_setup(fact, item):
 
             holder = Gtk.Box()
-            holder.set_margin_top(2)
-            holder.set_margin_bottom(2)
+            holder.set_margin_top(5)
+            holder.set_margin_bottom(5)
             holder.set_margin_start(4)
 
             icon = UserIconDisplay()
-            icon.set_size_request(37, 37)
+            icon.set_size_request(35, 35)
             holder.append(icon)
 
             # image = Gtk.Image()
@@ -985,26 +1003,36 @@ class MainWindow(Adw.ApplicationWindow):
             label.set_margin_start(9)
             label.set_use_markup(True)
 
-            holder.append(label)
+            text_vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+
+            holder.append(text_vbox)
+            text_vbox.append(label)
 
             item.set_child(holder)
             item.label = label
-            # item.image = image
             item.icon = icon
+
+            label = Gtk.Label(halign=Gtk.Align.START)
+            label.set_selectable(False)
+            label.set_margin_start(9)
+            label.set_use_markup(True)
+            label.set_markup("")
+            item.location_label = label
+            text_vbox.append(label)
+
 
         factory.connect("setup", f_setup)
 
         def f_bind(fact, row):
             friend = row.get_item()
-            #row.label.set_label(friend.name)
 
             friend.bind_property("name",
                           row.label, "label",
                           GObject.BindingFlags.SYNC_CREATE)
 
-            # friend.bind_property("mini_icon_filepath",
-            #               row.image, "file",
-            #               GObject.BindingFlags.SYNC_CREATE)
+            friend.bind_property("location",
+                          row.location_label, "label",
+                          GObject.BindingFlags.SYNC_CREATE)
 
             friend.bind_property("mini_icon_filepath",
                           row.icon, "icon_path",
@@ -1091,7 +1119,10 @@ class MainWindow(Adw.ApplicationWindow):
 
 
         self.username_entry = Gtk.Entry(placeholder_text="Username")
+        self.username_entry.set_margin_bottom(5)
         self.password_entry = Gtk.Entry(placeholder_text="Password", visibility=False)
+        self.password_entry.set_margin_bottom(10)
+
         self.stage1_box.append(self.username_entry)
         self.stage1_box.append(self.password_entry)
 
@@ -1100,6 +1131,11 @@ class MainWindow(Adw.ApplicationWindow):
         self.request_code_button.set_margin_bottom(30)
         self.request_code_button.connect("clicked", self.activate_get_code)
         self.stage1_box.append(self.request_code_button)
+
+        self.login_status_label = Gtk.Label(label="")
+        self.stage1_box.append(self.login_status_label)
+
+
         self.login_box.append(self.stage1_box)
 
         self.stage2_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -1188,6 +1224,8 @@ class MainWindow(Adw.ApplicationWindow):
 
         URL = p.get_banner_url()
         if URL:
+            # print("URL")
+            # print(URL)
             key = extract_filename(URL)
             key_path = os.path.join(USER_ICON_CACHE, key)
             if os.path.isfile(key_path):
@@ -1253,6 +1291,8 @@ class MainWindow(Adw.ApplicationWindow):
             pass
             old = row.name
             row.name = f"<b>{friend.display_name}</b>"
+
+            row.location = friend.location
 
             new = 0
             if friend.status == "offline":
@@ -1505,15 +1545,20 @@ class MainWindow(Adw.ApplicationWindow):
     def activate_get_code(self, button):
         username = self.username_entry.get_text()
         password = self.password_entry.get_text()
+        self.login_status_label.set_text("")
+
         try:
             vrcz.sign_in_step1(username, password)
+            self.login_status_label.set_text(vrcz.last_status)
             self.stage3_box.set_visible(False)
             self.stage2_box.set_visible(True)
             self.stage1_box.set_visible(False)
-        except ValueError as e:
+        except Exception as e:
             print(e)
+            self.login_status_label.set_text(vrcz.last_status)
 
     def activate_verify_code(self, button):
+        self.login_status_label.set_text("")
         code = self.two_fa_entry.get_text()
         try:
             vrcz.sign_in_step2(code)
