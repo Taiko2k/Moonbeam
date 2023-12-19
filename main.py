@@ -52,6 +52,11 @@ COPY_FRIEND_PROPERTIES = [
     "last_platform", "current_avatar_thumbnail_image_url", "note", "status_description", "tags", "profile_pic_override"
 ]
 
+COPY_WORLD_PROPERTIES = [
+    "author_id", "author_name", "capacity", "created_at", "description", "id", "thumbnail_image_url", "instances", "name",
+    "recommended_capacity", "release_status"
+]
+
 language_emoji_dict = {
     "language_eng": "🇬🇧",  # English - UK Flag
     "language_kor": "🇰🇷",  # Korean
@@ -224,6 +229,15 @@ class Friend():
             return self.current_avatar_thumbnail_image_url
         return ""
 
+class World():
+    def __init__(self, **kwargs):
+        for item in COPY_WORLD_PROPERTIES:
+            setattr(self, item, "")
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+    def load_from_api_model(self, w):
+        for item in COPY_WORLD_PROPERTIES:
+            setattr(self, item, getattr(w, item))
 
 class Job:
     def __init__(self, name: str, data=None):
@@ -293,10 +307,14 @@ class VRCZ:
         self.web_thread = None
         self.last_status = ""
 
+        self.worlds = {}
+        self.worlds_to_load = []
+
         self.error_log = []  # in event of any error, append human-readable string explaining error
         self.api_client = vrchatapi.ApiClient()
         self.api_client.user_agent = USER_AGENT
         self.auth_api = authentication_api.AuthenticationApi(self.api_client)
+        self.world_api = vrchatapi.WorldsApi(self.api_client)
         self.cookie_file_path = 'cookie_data'
 
         self.log_file_timer = Timer()
@@ -601,6 +619,12 @@ class VRCZ:
                 self.log_file_timer.set()
                 self.update_from_log()
 
+            if self.worlds_to_load:
+                id = self.worlds_to_load.pop()
+                self.load_world(id)
+                job = Job("update-friend-rows")
+                self.posts.append(job)
+
             if self.jobs:
                 job = self.jobs.pop(0)
                 print("doing job")
@@ -725,6 +749,31 @@ class VRCZ:
             if not self.jobs:
                 time.sleep(0.1)
 
+    def parse_world_id(self, s):
+        if not s:
+            return None
+        if not s.startswith("wrld_"):
+            return None
+        return s.split(":")[0]
+    def load_world(self, id, cached=True):
+        print("load world")
+        print(id)
+        if not id.startswith("wrld_"):
+            return None
+        if cached and id in self.worlds:
+            return self.worlds[id]
+
+        world = World()
+        try:
+            w = self.world_api.get_world(id)
+            world.load_from_api_model(w)
+        except Exception as e:
+            print(str(e))
+
+        #print(w)
+
+        self.worlds[id] = world
+        return world
 
 
 
@@ -832,11 +881,11 @@ class MainWindow(Adw.ApplicationWindow):
 
         self.outer_box = Gtk.Box()
 
-        self.set_default_size(1000, 500)
+        self.set_default_size(1050, 550)
         self.set_title(APP_TITLE)
 
         self.nav = Adw.NavigationSplitView()
-        self.nav.set_max_sidebar_width(220)
+        self.nav.set_max_sidebar_width(230)
         self.set_content(self.nav)
         self.header = Adw.HeaderBar()
         self.n1 = Adw.NavigationPage()
@@ -858,6 +907,7 @@ class MainWindow(Adw.ApplicationWindow):
         # ------------------ Info page
 
         self.info_box_clamp = Adw.Clamp()
+        self.info_box_clamp.set_maximum_size(700)
         self.vst1.add_titled_with_icon(self.info_box_clamp, "info", "Player Info", "user-info-symbolic")
 
         self.info_box_holder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -1144,6 +1194,8 @@ class MainWindow(Adw.ApplicationWindow):
 
 
         self.two_fa_entry = Gtk.Entry(placeholder_text="2FA Code")
+        self.two_fa_entry.set_margin_bottom(10)
+
         self.stage2_box.append(self.two_fa_entry)
 
         self.login_button = Gtk.Button(label="Verify Code")
@@ -1270,6 +1322,9 @@ class MainWindow(Adw.ApplicationWindow):
             rank = "Unknown"
         self.info_rank.set_subtitle(rank)
 
+        # world_id = vrcz.parse_world_id(p.location)
+        # vrcz.load_world(world_id)
+
 
     def on_selected_friend_click(self, view, n):
         selected_item = self.ss.get_selected_item()
@@ -1292,7 +1347,18 @@ class MainWindow(Adw.ApplicationWindow):
             old = row.name
             row.name = f"<b>{friend.display_name}</b>"
 
-            row.location = friend.location
+            if not friend.location:
+                row.location = "Unknown"
+            else:
+                row.location = friend.location.capitalize()
+            world_id = vrcz.parse_world_id(friend.location)
+            if world_id:
+                if world_id in vrcz.worlds:
+                    world = vrcz.worlds[world_id]
+                    row.location = world.name
+                else:
+                    if world_id not in vrcz.worlds_to_load:
+                        vrcz.worlds_to_load.append(world_id)
 
             new = 0
             if friend.status == "offline":
