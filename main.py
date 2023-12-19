@@ -468,6 +468,10 @@ class VRCZ:
                     for e in self.events:
                         job = Job(name="event", data=e)
                         self.posts.append(job)
+                if "worlds" in d:
+                    for k, v in d["worlds"].items():
+                        world = World(**v)
+                        self.worlds[k] = world
 
 
     def save_app_data(self):
@@ -478,9 +482,14 @@ class VRCZ:
         for k, v in self.friend_objects.items():
             friends[k] = v.__dict__
 
+        worlds = {}
+        for k, v in self.worlds.items():
+            worlds[k] = v.__dict__
+
         d["friends"] = friends
         d["self"] = self.user_object.__dict__
         d["events"] = self.events
+        d["worlds"] = worlds
         with open(DATA_FILE, 'wb') as file:
             pickle.dump(d, file)
 
@@ -755,14 +764,15 @@ class VRCZ:
         if not s.startswith("wrld_"):
             return None
         return s.split(":")[0]
+
     def load_world(self, id, cached=True):
-        print("load world")
-        print(id)
+
         if not id.startswith("wrld_"):
             return None
         if cached and id in self.worlds:
             return self.worlds[id]
-
+        print("load world")
+        print(id)
         world = World()
         try:
             w = self.world_api.get_world(id)
@@ -881,11 +891,11 @@ class MainWindow(Adw.ApplicationWindow):
 
         self.outer_box = Gtk.Box()
 
-        self.set_default_size(1050, 550)
+        self.set_default_size(1200, 650)
         self.set_title(APP_TITLE)
 
         self.nav = Adw.NavigationSplitView()
-        self.nav.set_max_sidebar_width(230)
+        self.nav.set_max_sidebar_width(240)
         self.set_content(self.nav)
         self.header = Adw.HeaderBar()
         self.n1 = Adw.NavigationPage()
@@ -1038,7 +1048,7 @@ class MainWindow(Adw.ApplicationWindow):
             holder = Gtk.Box()
             holder.set_margin_top(5)
             holder.set_margin_bottom(5)
-            holder.set_margin_start(4)
+            holder.set_margin_start(6)
 
             icon = UserIconDisplay()
             icon.set_size_request(35, 35)
@@ -1050,7 +1060,7 @@ class MainWindow(Adw.ApplicationWindow):
 
             label = Gtk.Label(halign=Gtk.Align.START)
             label.set_selectable(False)
-            label.set_margin_start(9)
+            label.set_margin_start(10)
             label.set_use_markup(True)
 
             text_vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -1064,7 +1074,7 @@ class MainWindow(Adw.ApplicationWindow):
 
             label = Gtk.Label(halign=Gtk.Align.START)
             label.set_selectable(False)
-            label.set_margin_start(9)
+            label.set_margin_start(10)
             label.set_use_markup(True)
             label.set_markup("")
             item.location_label = label
@@ -1343,19 +1353,23 @@ class MainWindow(Adw.ApplicationWindow):
         if friend is None and id == vrcz.user_object.id:
             friend = vrcz.user_object
         if row and friend:
-            pass
-            old = row.name
+
             row.name = f"<b>{friend.display_name}</b>"
 
             if not friend.location:
-                row.location = "Unknown"
+                row.location = "<small>Unknown</small>"
+            elif friend.location == "offline":
+                row.location = f"<span foreground=\"#aaaaaa\"><b><small>Offline</small></b></span>"
+            elif friend.location == "private":
+                row.location = f"<span foreground=\"#de7978\"><b><small>Private</small></b></span>"
             else:
-                row.location = friend.location.capitalize()
+                row.location = f"<span foreground=\"#aaaaaa\"><b><small>{friend.location.capitalize()}</small></b></span>"
             world_id = vrcz.parse_world_id(friend.location)
             if world_id:
                 if world_id in vrcz.worlds:
                     world = vrcz.worlds[world_id]
-                    row.location = world.name
+                    row.location = f"<small>{world.name}</small>"
+                    row.location = f"<span foreground=\"#efb5f5\"><b><small>{world.name}</small></b></span>"
                 else:
                     if world_id not in vrcz.worlds_to_load:
                         vrcz.worlds_to_load.append(world_id)
@@ -1380,12 +1394,14 @@ class MainWindow(Adw.ApplicationWindow):
                 key = extract_filename(friend.user_icon)
                 if key:
                     key_path = os.path.join(USER_ICON_CACHE, key)
-                    row.mini_icon_filepath = key_path
+                    if row.mini_icon_filepath != key_path:
+                        row.mini_icon_filepath = key_path
             elif friend.current_avatar_thumbnail_image_url:
                 key = extract_filename(friend.current_avatar_thumbnail_image_url)
                 if key:
                     key_path = os.path.join(USER_ICON_CACHE, key)
-                    row.mini_icon_filepath = key_path
+                    if row.mini_icon_filepath != key_path:
+                        row.mini_icon_filepath = key_path
 
     def click_user(self, button, user):
         print(user)
@@ -1466,11 +1482,11 @@ class MainWindow(Adw.ApplicationWindow):
                     user = event.subject
                     if user:
                         label = Gtk.Label()
-                        if user.location != "offline":
+                        if user.location != "offline" or True:
                             label.set_markup(f"<span foreground=\"#16f2ca\" weight=\"bold\">{user.display_name}</span>")
-                        else:
-                            label.set_markup(f"<span weight=\"bold\">{user.display_name}</span>")
-                            self.set_style(label, "dim-label")
+                        # else:
+                        #     label.set_markup(f"<span weight=\"bold\">{user.display_name}</span>")
+                        #     self.set_style(label, "dim-label")
 
                         b = Gtk.Button()
                         b.connect("clicked", self.click_user, user)
@@ -1513,20 +1529,38 @@ class MainWindow(Adw.ApplicationWindow):
                                 #     label.set_margin_end(5)
                                 #     box.append(label)
                             else:
-                                target = user.location
+                                #target = user.location
+                                target = event.content["travelingToLocation"]
+                                if not target:
+                                    target = event.content["location"]
+                                print("aa")
+                                print(event.content)
+                                print(target)
                                 if target == "private" or not target:
                                     label = Gtk.Label()
-                                    label.set_markup(f"arrived at a hidden location")
+                                    label.set_markup(f" > Hidden location")
                                     label.set_margin_end(5)
                                     box.append(label)
                                 else:
                                     label = Gtk.Label()
-                                    label.set_markup(f"arrived at")
+                                    label.set_markup(f" > ")
                                     label.set_margin_end(5)
                                     box.append(label)
 
+                                    text = target
+                                    world_id = vrcz.parse_world_id(target)
+                                    if world_id:
+                                        if world_id in vrcz.worlds:
+                                            world = vrcz.worlds[world_id]
+                                            text = world.name
+                                        else:
+                                            if world_id not in vrcz.worlds_to_load:
+                                                vrcz.worlds_to_load.append(world_id)
+
                                     label = Gtk.Label()
-                                    label.set_markup(f"{target}...")
+                                    label.set_markup(f"{text}")
+                                    label.set_markup(
+                                        f"<span foreground=\"#ec90f5\" weight=\"bold\">{text}</span>")
                                     label.set_margin_end(5)
                                     box.append(label)
 
@@ -1536,9 +1570,11 @@ class MainWindow(Adw.ApplicationWindow):
                     vrcz.posts.append(job)
 
         if update_friend_rows:
+            print("UPDATE ROWS")
             for k, v in self.friend_data.items():
                 self.set_friend_row_data(k)
         if update_friend_list:
+            print("UPDATE LIST")
             self.update_friend_list()
 
         GLib.timeout_add(1000, self.heartbeat)
@@ -1660,6 +1696,12 @@ class MOONBEAM(Adw.Application):
 
 app = MOONBEAM(application_id="com.github.taiko2k.moonbeam")
 app.run(sys.argv)
+
+vrcz.user_object.location = "offline"
+vrcz.user_object.status = "offline"
+for k, v in vrcz.friend_objects.items():
+    v.location = "offline"
+    v.status = "offline"
 vrcz.save_app_data()
 RUNNING = False
 time.sleep(1)
