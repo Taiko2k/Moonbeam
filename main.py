@@ -23,6 +23,7 @@ import time
 import threading
 import websocket
 import datetime
+import copy
 
 
 APP_TITLE = "Moonbeam VRC"
@@ -54,7 +55,7 @@ COPY_FRIEND_PROPERTIES = [
 
 COPY_WORLD_PROPERTIES = [
     "author_id", "author_name", "capacity", "created_at", "description", "id", "thumbnail_image_url", "instances", "name",
-    "recommended_capacity", "release_status"
+    "recommended_capacity", "release_status", "instances"
 ]
 
 language_emoji_dict = {
@@ -115,6 +116,28 @@ class Timer:
         self.start = time.monotonic()
         self.start -= sec
 
+
+class RateLimiter:
+    def __init__(self):
+        self.last_call_time = None
+        self.interval = 5
+        self.burst = 5
+
+    def inhibit(self):
+        self.burst -= 1
+        if self.burst <= 0:
+            now = time.monotonic()
+            if self.last_call_time is not None:
+                elapsed = now - self.last_call_time
+                if 0 <= elapsed < self.interval:
+                    print(self.interval - elapsed)
+                    print("COOLDOWN")
+                    time.sleep(min(self.interval - elapsed, self.interval))
+
+        self.last_call_time = time.monotonic()
+        return
+
+rl = RateLimiter()
 
 RUNNING = True
 
@@ -203,6 +226,7 @@ class LogReader:
 class FriendRow(GObject.Object):
     name = GObject.Property(type=str, default='')
     location = GObject.Property(type=str, default='')
+    public_count = GObject.Property(type=str, default='')
     status = GObject.Property(type=int, default=0)
     mini_icon_filepath = GObject.Property(type=str, default='')
 
@@ -214,6 +238,7 @@ class FriendRow(GObject.Object):
         self.status = 0
         self.is_user = False
         self.id = None
+        self.public_count = ""
 
 class Friend():
     def __init__(self, **kwargs):
@@ -231,6 +256,9 @@ class Friend():
 
 class World():
     def __init__(self, **kwargs):
+
+        self.last_fetched = 1
+
         for item in COPY_WORLD_PROPERTIES:
             setattr(self, item, "")
         for key, value in kwargs.items():
@@ -265,35 +293,6 @@ class Instance:
         self.region = ""  # e.g jp
         self.nonce = ""
 
-
-def parse_world_info(s):
-    world = Instance()
-
-    # Split on '&'
-    parts = s.split('&')
-
-    for part in parts:
-        if 'worldId' in part:
-            world.world_id = part.split('=')[1]
-        elif 'instanceId' in part:
-            instance_parts = part.split('=')[1].split('~')
-            world.instance_id = instance_parts[0]
-
-            for instance_part in instance_parts[1:]:
-                if 'hidden' in instance_part:
-                    world.instance_type = 'hidden'
-                    world.owner_id = instance_part.split('(')[1].rstrip(')')
-                elif 'private' in instance_part:
-                    world.instance_type = 'private'
-                    world.owner_id = instance_part.split('(')[1].rstrip(')')
-                elif 'canRequestInvite' in instance_part:
-                    world.can_request_invite = True
-                elif 'region' in instance_part:
-                    world.region = instance_part.split('(')[1].rstrip(')')
-                elif 'nonce' in instance_part:
-                    world.nonce = instance_part.split('(')[1].rstrip(')')
-
-    return world
 
 class VRCZ:
 
@@ -484,7 +483,9 @@ class VRCZ:
 
         worlds = {}
         for k, v in self.worlds.items():
-            worlds[k] = v.__dict__
+            worlds[k] = copy.deepcopy(v.__dict__)
+            del worlds[k]["instances"]
+            del worlds[k]["last_fetched"]
 
         d["friends"] = friends
         d["self"] = self.user_object.__dict__
@@ -547,6 +548,7 @@ class VRCZ:
 
         # Try authenticate
         try:
+            rl.inhibit()
             user = self.auth_api.get_current_user()
             self.logged_in = True
         except Exception as e:
@@ -646,11 +648,10 @@ class VRCZ:
 
                     friends_api_instance = friends_api.FriendsApi(self.api_client)
 
-                    print("COOLDOWN")
-                    time.sleep(2)
                     n = 100
                     offset = 0
                     while True:
+                        rl.inhibit()
                         next = friends_api_instance.get_friends(n=n, offset=offset, offline="true")
                         if not next:
                             break
@@ -662,8 +663,6 @@ class VRCZ:
                         offset += n
                         if len(next) < n:
                             break
-                        print("COOLDOWN")
-                        time.sleep(2)
 
                     self.save_app_data()
                     job = Job("update-friend-rows")
@@ -673,11 +672,10 @@ class VRCZ:
 
                 if job.name == "refresh-friend-db":
                     friends_api_instance = friends_api.FriendsApi(self.api_client)
-                    print("COOLDOWN")
-                    time.sleep(2)
                     n = 100
                     offset = 0
                     while True:
+                        rl.inhibit()
                         next = friends_api_instance.get_friends(n=n, offset=offset)
 
                         if not next:
@@ -690,9 +688,7 @@ class VRCZ:
                         offset += n
                         if len(next) < n:
                             break
-                        print("COOLDOWN")
 
-                        time.sleep(2)
 
                     self.save_app_data()
                     job = Job("update-friend-rows")
@@ -716,7 +712,6 @@ class VRCZ:
                             print("download icon")
 
                             response = requests.get(v.user_icon, headers=REQUEST_DL_HEADER)
-                            time.sleep(0.1)
                             with open(key_path, 'wb') as f:
                                 f.write(response.content)
 
@@ -728,7 +723,6 @@ class VRCZ:
                         key_path = os.path.join(USER_ICON_CACHE, key)
                         if key not in os.listdir(USER_ICON_CACHE):
                             response = requests.get(URL, headers=REQUEST_DL_HEADER)
-                            time.sleep(0.1)
                             with open(key_path, 'wb') as f:
                                 f.write(response.content)
                     job = Job("check-user-info-banner")
@@ -751,32 +745,51 @@ class VRCZ:
                             print("download icon")
 
                             response = requests.get(v.current_avatar_thumbnail_image_url, headers=REQUEST_DL_HEADER)
-                            time.sleep(0.1)
                             with open(key_path, 'wb') as f:
                                 f.write(response.content)
 
             if not self.jobs:
-                time.sleep(0.1)
+                time.sleep(0.01)
 
     def parse_world_id(self, s):
         if not s:
             return None
-        if not s.startswith("wrld_"):
+        if not s.lower().startswith("wrld_"):
             return None
         return s.split(":")[0]
 
-    def load_world(self, id, cached=True):
+    def parse_world_instance(self, s):
+        if not s:
+            return None
+        if not s.lower().startswith("wrld_"):
+            return None
+        if not ":" in s:
+            return None
+        line = s.split(":")[1].split("~")[0]
+        if not line.isnumeric():
+            print("parse error")
+            return None
+        return line
 
-        if not id.startswith("wrld_"):
+    def load_world(self, id, cached=True):
+        print("load world1")
+        if not id.lower().startswith("wrld_"):
             return None
         if cached and id in self.worlds:
-            return self.worlds[id]
-        print("load world")
+            world = self.worlds[id]
+            print(time.time() - world.last_fetched)
+            if time.time() - world.last_fetched < 60 * 5:
+                return world
+        else:
+            world = World()
+        print("load world2")
         print(id)
-        world = World()
+
         try:
+            rl.inhibit()
             w = self.world_api.get_world(id)
             world.load_from_api_model(w)
+            world.last_fetched = time.time()
         except Exception as e:
             print(str(e))
 
@@ -1072,13 +1085,30 @@ class MainWindow(Adw.ApplicationWindow):
             item.label = label
             item.icon = icon
 
+            status_hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+
+
             label = Gtk.Label(halign=Gtk.Align.START)
             label.set_selectable(False)
             label.set_margin_start(10)
             label.set_use_markup(True)
             label.set_markup("")
             item.location_label = label
-            text_vbox.append(label)
+
+            status_hbox.append(label)
+
+            label = Gtk.Label(halign=Gtk.Align.START)
+            label.set_selectable(False)
+            label.set_margin_start(5)
+            label.set_use_markup(True)
+            label.set_markup("")
+            item.public_count = label
+            status_hbox.append(label)
+
+
+            text_vbox.append(status_hbox)
+
+
 
 
         factory.connect("setup", f_setup)
@@ -1092,6 +1122,10 @@ class MainWindow(Adw.ApplicationWindow):
 
             friend.bind_property("location",
                           row.location_label, "label",
+                          GObject.BindingFlags.SYNC_CREATE)
+
+            friend.bind_property("public_count",
+                          row.public_count, "label",
                           GObject.BindingFlags.SYNC_CREATE)
 
             friend.bind_property("mini_icon_filepath",
@@ -1364,15 +1398,46 @@ class MainWindow(Adw.ApplicationWindow):
                 row.location = f"<span foreground=\"#de7978\"><b><small>Private</small></b></span>"
             else:
                 row.location = f"<span foreground=\"#aaaaaa\"><b><small>{friend.location.capitalize()}</small></b></span>"
+
+            count = ""
             world_id = vrcz.parse_world_id(friend.location)
             if world_id:
                 if world_id in vrcz.worlds:
                     world = vrcz.worlds[world_id]
-                    row.location = f"<small>{world.name}</small>"
+
+                    #row.location = f"<small>{world.name}</small>"
                     row.location = f"<span foreground=\"#efb5f5\"><b><small>{world.name}</small></b></span>"
+
+                    if "~hidden" not in friend.location:
+                        if world.last_fetched and time.time() - world.last_fetched > 60 * 5:
+                            print("request world reload")
+                            vrcz.worlds_to_load.append(world_id)
+
+                        print("OK")
+                        print(world.name)
+                        print(friend.location)
+                        print(world.instances)
+
+                        if world.instances:
+                            player_instance = vrcz.parse_world_instance(friend.location)
+                            if player_instance:
+                                for instance in world.instances:
+                                    if instance[0].split("~")[0] == player_instance:
+                                        count = f"<span foreground=\"#f2d37e\"><b><small>{str(instance[1])}</small></b></span>"
+                                        break
+                                else:
+                                    print("no match")
+                            else:
+                                print("no parse")
+                        else:
+                            print("no instances")
+
                 else:
                     if world_id not in vrcz.worlds_to_load:
                         vrcz.worlds_to_load.append(world_id)
+
+            if row.public_count != count:
+                row.public_count = count
 
             new = 0
             if friend.status == "offline":
@@ -1389,6 +1454,7 @@ class MainWindow(Adw.ApplicationWindow):
                 new = 5
 
             row.status = new
+
 
             if friend.user_icon:
                 key = extract_filename(friend.user_icon)
@@ -1556,6 +1622,7 @@ class MainWindow(Adw.ApplicationWindow):
                                         else:
                                             if world_id not in vrcz.worlds_to_load:
                                                 vrcz.worlds_to_load.append(world_id)
+
 
                                     label = Gtk.Label()
                                     label.set_markup(f"{text}")
