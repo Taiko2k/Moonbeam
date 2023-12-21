@@ -474,8 +474,10 @@ class VRCZ:
 
 
     def save_app_data(self):
-        if self.logged_in:
-            self.save_cookies()
+        if not self.logged_in:
+            return
+        self.save_cookies()
+
         d = {}
         friends = {}
         for k, v in self.friend_objects.items():
