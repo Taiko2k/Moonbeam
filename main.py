@@ -1764,8 +1764,9 @@ class MOONBEAM(Adw.Application):
 app = MOONBEAM(application_id="com.github.taiko2k.moonbeam")
 app.run(sys.argv)
 
-vrcz.user_object.location = "offline"
-vrcz.user_object.status = "offline"
+if vrcz.user_object:
+    vrcz.user_object.location = "offline"
+    vrcz.user_object.status = "offline"
 for k, v in vrcz.friend_objects.items():
     v.location = "offline"
     v.status = "offline"
