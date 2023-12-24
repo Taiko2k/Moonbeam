@@ -1457,8 +1457,8 @@ class MainWindow(Adw.ApplicationWindow):
         if friend is None and id == vrcz.user_object.id:
             friend = vrcz.user_object
         if row and friend:
-            if friend.location == "offline":
-                return
+            # if friend.location == "offline":
+            #     return
             print("LOAD ROW --------")
             print(f"friend: {friend.display_name}")
             print(f"location: {friend.location}")
