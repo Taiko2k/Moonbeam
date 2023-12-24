@@ -507,8 +507,10 @@ class VRCZ:
 
 
     def save_app_data(self):
-        if self.logged_in:
-            self.save_cookies()
+        if not self.logged_in:
+            return
+        self.save_cookies()
+
         d = {}
         friends = {}
         for k, v in self.friend_objects.items():
@@ -1888,8 +1890,9 @@ class MOONBEAM(Adw.Application):
 app = MOONBEAM(application_id="com.github.taiko2k.moonbeam")
 app.run(sys.argv)
 
-vrcz.user_object.location = "offline"
-vrcz.user_object.status = "offline"
+if vrcz.user_object:
+    vrcz.user_object.location = "offline"
+    vrcz.user_object.status = "offline"
 for k, v in vrcz.friend_objects.items():
     v.location = "offline"
     v.status = "offline"
