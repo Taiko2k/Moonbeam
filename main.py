@@ -36,6 +36,8 @@ REQUEST_DL_HEADER = {
 DATA_FILE = 'user_data.pkl'
 USER_ICON_CACHE = "cache/avatar1"
 
+WORLD_CACHE_DURATION = 60 * 5
+INSTANCE_CACHE_DURATION = 60 * 3
 
 if not os.path.exists(USER_ICON_CACHE):
     os.makedirs(USER_ICON_CACHE)
@@ -57,6 +59,11 @@ COPY_WORLD_PROPERTIES = [
     "author_id", "author_name", "capacity", "created_at", "description", "id", "thumbnail_image_url", "instances", "name",
     "recommended_capacity", "release_status", "instances"
 ]
+
+COPY_INSTANCE_PROPERTIES = {
+    "active", "can_request_invite", "capacity", "instance_id", "location", "name", "n_users", "region", "platforms",
+    "world_id"
+}
 
 language_emoji_dict = {
     "language_eng": "🇬🇧",  # English - UK Flag
@@ -257,7 +264,7 @@ class Friend():
 class World():
     def __init__(self, **kwargs):
 
-        self.last_fetched = 1
+        self.last_fetched = None
 
         for item in COPY_WORLD_PROPERTIES:
             setattr(self, item, "")
@@ -283,15 +290,14 @@ class Event:
         self.location_to = ""
         self.content = content
 
+
 class Instance:
-    def __init__(self):
-        self.world_id = ""
-        self.instance_id = ""  # e.g 12345
-        self.instance_type = ""  # e.g private
-        self.owner_id = ""
-        self.can_request_invite = False
-        self.region = ""  # e.g jp
-        self.nonce = ""
+    def __init__(self, **kwargs):
+        self.last_fetched = Timer()
+        for item in COPY_INSTANCE_PROPERTIES:
+            setattr(self, item, "")
+        for key, value in kwargs.items():
+            setattr(self, key, value)
 
 
 class VRCZ:
@@ -302,6 +308,10 @@ class VRCZ:
         self.current_user_name = ""  # in-game name
         self.friend_id_list = []
         self.friend_objects = {}
+
+        self.instance_cache = {}
+        self.instances_to_load = []
+
         self.user_object = None
         self.web_thread = None
         self.last_status = ""
@@ -314,6 +324,8 @@ class VRCZ:
         self.api_client.user_agent = USER_AGENT
         self.auth_api = authentication_api.AuthenticationApi(self.api_client)
         self.world_api = vrchatapi.WorldsApi(self.api_client)
+        self.instance_api = vrchatapi.InstancesApi(self.api_client)
+
         self.cookie_file_path = 'cookie_data'
 
         self.log_file_timer = Timer()
@@ -332,6 +344,27 @@ class VRCZ:
         else:
             print("VRCHAT Data folder NOT found")
 
+
+    def instance_from_location(self, location):
+        if not location or not location.lower().startswith("wrld_") or not ":" in location:
+            return None
+
+        if location in self.instance_cache:
+            i = self.instance_cache[location]
+            if i is None:
+                return None
+            if i.last_fetched and i.last_fetched.get() < INSTANCE_CACHE_DURATION:
+                return i
+            else:
+                print("instance expired")
+
+        if location in self.instances_to_load:
+            return None
+        print("request load instance")
+        self.instances_to_load.append(location)
+
+
+        return None
 
     def update_from_log(self):
         if self.log_reader:
@@ -631,14 +664,23 @@ class VRCZ:
                 self.update_from_log()
 
             if self.worlds_to_load:
-                id = self.worlds_to_load.pop()
+                id = self.worlds_to_load[0]
                 self.load_world(id)
+                del self.worlds_to_load[0]
                 job = Job("update-friend-rows")
                 self.posts.append(job)
 
+            if self.instances_to_load:
+                location = self.instances_to_load[0]
+                self.load_location(location)
+                del self.instances_to_load[0]
+                job = Job("update-friend-rows")
+                self.posts.append(job)
+
+
             if self.jobs:
                 job = self.jobs.pop(0)
-                print("doing job")
+                print("Doing Job...")
                 print(job.name)
 
                 if job.name == "event":
@@ -777,19 +819,23 @@ class VRCZ:
             return None
         if cached and id in self.worlds:
             world = self.worlds[id]
-            print(time.time() - world.last_fetched)
-            if time.time() - world.last_fetched < 60 * 5:
+            if world.last_fetched and world.last_fetched.get() < WORLD_CACHE_DURATION:
                 return world
         else:
             world = World()
+
+        if not world.last_fetched:
+            world.last_fetched = Timer()
+
         print("load world2")
         print(id)
 
         try:
             rl.inhibit()
             w = self.world_api.get_world(id)
+            world.last_fetched.set()
             world.load_from_api_model(w)
-            world.last_fetched = time.time()
+
         except Exception as e:
             print(str(e))
 
@@ -797,6 +843,28 @@ class VRCZ:
 
         self.worlds[id] = world
         return world
+
+    def load_location(self, location):
+
+        try:
+            print("LOAD LOCATION")
+            w_id, i_id = location.split(":")
+            print((w_id, i_id))
+            rl.inhibit()
+            instance = self.instance_api.get_instance(w_id, i_id)
+            if not instance:
+                print("no instance gottin")
+                self.instance_cache[location] = None
+                return
+            print("loaded instance")
+            print(instance)
+        except Exception as e:
+            self.instance_cache[location] = None
+            print("error loading instance")
+            print(str(e))
+            return
+
+        self.instance_cache[location] = Instance(**instance.__dict__)
 
 
 
@@ -908,7 +976,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.set_title(APP_TITLE)
 
         self.nav = Adw.NavigationSplitView()
-        self.nav.set_max_sidebar_width(240)
+        self.nav.set_max_sidebar_width(260)
         self.set_content(self.nav)
         self.header = Adw.HeaderBar()
         self.n1 = Adw.NavigationPage()
@@ -1387,43 +1455,59 @@ class MainWindow(Adw.ApplicationWindow):
         if friend is None and id == vrcz.user_object.id:
             friend = vrcz.user_object
         if row and friend:
+            if friend.location == "offline":
+                return
+            print("LOAD ROW --------")
+            print(f"friend: {friend.display_name}")
+            print(f"location: {friend.location}")
 
             row.name = f"<b>{friend.display_name}</b>"
+            count = ""
+            location = ""
 
             if not friend.location:
-                row.location = "<small>Unknown</small>"
+                location = "<small>Unknown</small>"
             elif friend.location == "offline":
-                row.location = f"<span foreground=\"#aaaaaa\"><b><small>Offline</small></b></span>"
+                location = f"<span foreground=\"#aaaaaa\"><b><small>Offline</small></b></span>"
             elif friend.location == "private":
-                row.location = f"<span foreground=\"#de7978\"><b><small>Private</small></b></span>"
+                location = f"<span foreground=\"#de7978\"><b><small>Private</small></b></span>"
             else:
-                row.location = f"<span foreground=\"#aaaaaa\"><b><small>{friend.location.capitalize()}</small></b></span>"
+                location = f"<span foreground=\"#aaaaaa\"><b><small>{friend.location.capitalize()}</small></b></span>"
 
-            count = ""
+            capacity = ""
             world_id = vrcz.parse_world_id(friend.location)
             if world_id:
                 if world_id in vrcz.worlds:
                     world = vrcz.worlds[world_id]
 
                     #row.location = f"<small>{world.name}</small>"
-                    row.location = f"<span foreground=\"#efb5f5\"><b><small>{world.name}</small></b></span>"
+                    location = f"<span foreground=\"#efb5f5\"><b><small>{world.name}</small></b></span>"
 
-                    if "~hidden" not in friend.location:
-                        if world.last_fetched and time.time() - world.last_fetched > 60 * 5:
+                    hidden = "~hidden" in friend.location
+                    #print(f"hidden: {~hidden == True}")
+
+                    # Try get instance count from public info
+                    if not hidden:
+
+                        if world.last_fetched and world.last_fetched.get() < WORLD_CACHE_DURATION:
+                            pass
+                        else:
                             print("request world reload")
                             vrcz.worlds_to_load.append(world_id)
 
-                        print("OK")
-                        print(world.name)
-                        print(friend.location)
+                        print("Got world")
+                        print(f"world name: {world.name}")
+                        print("Instances: V")
                         print(world.instances)
+                        capacity = world.capacity
 
                         if world.instances:
                             player_instance = vrcz.parse_world_instance(friend.location)
                             if player_instance:
+                                print(world.instances)
                                 for instance in world.instances:
                                     if instance[0].split("~")[0] == player_instance:
-                                        count = f"<span foreground=\"#f2d37e\"><b><small>{str(instance[1])}</small></b></span>"
+                                        count = str(instance[1])
                                         break
                                 else:
                                     print("no match")
@@ -1432,12 +1516,50 @@ class MainWindow(Adw.ApplicationWindow):
                         else:
                             print("no instances")
 
+                        if not count:
+                            #print("get from instance...")
+                            instance = vrcz.instance_from_location(friend.location)
+                            if instance and instance.n_users:
+                                # print("got count from instance")
+                                # print(dir(instance))
+                                count = str(instance.n_users)
+
+                        print(f"count: {count}")
+
                 else:
                     if world_id not in vrcz.worlds_to_load:
                         vrcz.worlds_to_load.append(world_id)
 
+            # Determine type
+            instance_type = ""
+            if "~groupAccessType(public)" in friend.location:
+                instance_type = "Public"
+            elif "public" in friend.location:
+                instance_type = "Public"
+            elif "hidden" in friend.location:
+                instance_type = "Friends+"
+            elif "friends" in friend.location:
+                instance_type = "Friends"
+            elif ":" in friend.location:
+                instance_type = "Public"
+
+
+
+            text = ""
+            if instance_type:
+                text = f"<small><b><span background=\"#444444\"> {instance_type} </span></b></small> "
+
+            if count:
+                text += f" <span foreground=\"#f2d37e\"><b><small>{count}/{capacity} </small></b></span> "
+
+            text += location
+            if row.location != text:
+                row.location = text
+
             if row.public_count != count:
                 row.public_count = count
+
+
 
             new = 0
             if friend.status == "offline":
@@ -1478,7 +1600,7 @@ class MainWindow(Adw.ApplicationWindow):
         while vrcz.posts:
             post = vrcz.posts.pop(0)
             #print("post")
-            print(post.name)
+            #print(post.name)
 
             if post.name == "check-user-info-banner":
                 if self.selected_user_info and self.selected_user_info == post.data:
@@ -1504,7 +1626,7 @@ class MainWindow(Adw.ApplicationWindow):
 
                 box = Gtk.Box()
                 box.set_margin_bottom(0)
-                print(event.type)
+                #print(event.type)
 
 
                 label = Gtk.Label(label=format_time(event.timestamp))
@@ -1599,9 +1721,9 @@ class MainWindow(Adw.ApplicationWindow):
                                 target = event.content["travelingToLocation"]
                                 if not target:
                                     target = event.content["location"]
-                                print("aa")
-                                print(event.content)
-                                print(target)
+                                # print("aa")
+                                # print(event.content)
+                                # print(target)
                                 if target == "private" or not target:
                                     label = Gtk.Label()
                                     label.set_markup(f" > Hidden location")
@@ -1656,9 +1778,11 @@ class MainWindow(Adw.ApplicationWindow):
         vrcz.posts.append(job)
 
     def test3(self, button):
-        button.set_sensitive(False)
         if vrcz.update():
+            button.set_sensitive(False)
             self.login_box.set_visible(True)
+        else:
+            self.vst1.set_visible_child_name("login")
 
 
     def update_friend_list(self):
