@@ -304,6 +304,7 @@ class VRCZ:
 
     def __init__(self):
         self.logged_in = False
+        self.initial_update = False
 
         self.current_user_name = ""  # in-game name
         self.friend_id_list = []
@@ -343,6 +344,9 @@ class VRCZ:
             self.log_reader = LogReader(self.log_dir)
         else:
             print("VRCHAT Data folder NOT found")
+
+        self.online_friend_db_update_timer = None
+        self.offline_friend_db_update_timer = None
 
 
     def instance_from_location(self, location):
@@ -504,7 +508,10 @@ class VRCZ:
                     for k, v in d["worlds"].items():
                         world = World(**v)
                         self.worlds[k] = world
-
+                if "db_online_timer" in d:
+                    self.online_friend_db_update_timer = d["db_online_timer"]
+                if "db_offline_timer" in d:
+                    self.offline_friend_db_update_timer = d["db_offline_timer"]
 
     def save_app_data(self):
         if not self.logged_in:
@@ -522,10 +529,15 @@ class VRCZ:
             del worlds[k]["instances"]
             #del worlds[k]["last_fetched"]
 
+        if self.online_friend_db_update_timer:
+            self.online_friend_db_update_timer.set()
+
         d["friends"] = friends
         d["self"] = self.user_object.__dict__
         d["events"] = self.events
         d["worlds"] = worlds
+        d["db_online_timer"] = self.online_friend_db_update_timer
+        d["db_offline_timer"] = self.offline_friend_db_update_timer
         with open(DATA_FILE, 'wb') as file:
             pickle.dump(d, file)
 
@@ -596,15 +608,12 @@ class VRCZ:
         self.friend_id_list = user.friends
 
         print(user)
-        fetch_offline = False
 
         for id in user.offline_friends:
             friend = self.friend_objects.get(id)
             if friend:
                 friend.status = "offline"
                 friend.location = "offline"
-            else:
-                fetch_offline = True
         for id in user.online_friends:
             friend = self.friend_objects.get(id)
             if friend:
@@ -627,24 +636,47 @@ class VRCZ:
 
         self.save_app_data()
 
+        go = False
+        if not self.online_friend_db_update_timer:
+            self.online_friend_db_update_timer = Timer()
+            go = True
+        else:
+            if self.online_friend_db_update_timer.get() > 30:  # 30s
+                go = True
+
+        if go:
+            job = Job("refresh-friend-db")
+            self.jobs.append(job)
+        else:
+            print("App was quickly restarted, skipping online update")
+        self.online_friend_db_update_timer.set()
+
+        go = False
+        if not self.offline_friend_db_update_timer:
+            self.offline_friend_db_update_timer = Timer()
+            go = True
+        else:
+            if self.offline_friend_db_update_timer.get() > 60 * 60 * 3:  # 3h
+                go = True
+
+        if go:
+            print("Get offline friends as well")
+            job = Job("refresh-friend-db-offline")
+            self.jobs.append(job)
+            self.offline_friend_db_update_timer.set()
+        else:
+            print("Skip update offline friends")
+
         job = Job("download-check-user-icon", self.user_object)
         self.jobs.append(job)
         job = Job("download-check-user-avatar-thumbnail", self.user_object)
         self.jobs.append(job)
 
-        job = Job("refresh-friend-db")
-        self.jobs.append(job)
-
-        if fetch_offline:
-            print("Get offline friends as well")
-            job = Job("refresh-friend-db-offline")
-            self.jobs.append(job)
 
         print(f"Logged in as: {self.current_user_name}")
 
         job = Job("update-friend-list")
         vrcz.posts.append(job)
-
 
         if not self.web_thread or not self.web_thread.is_alive():
             self.web_thread = threading.Thread(target=self.web_monitor)
@@ -661,6 +693,12 @@ class VRCZ:
 
     def worker(self):
         while RUNNING:
+
+            if self.logged_in and not self.initial_update:
+                print("INITIAL UPDATE")
+                self.initial_update = True
+                self.update()
+
             if self.log_file_timer.get() > 10:
                 self.log_file_timer.set()
                 self.update_from_log()
@@ -1955,12 +1993,12 @@ class MOONBEAM(Adw.Application):
 app = MOONBEAM(application_id="com.github.taiko2k.moonbeam")
 app.run(sys.argv)
 
-if vrcz.user_object:
-    vrcz.user_object.location = "offline"
-    vrcz.user_object.status = "offline"
-for k, v in vrcz.friend_objects.items():
-    v.location = "offline"
-    v.status = "offline"
+# if vrcz.user_object:
+#     vrcz.user_object.location = "offline"
+#     vrcz.user_object.status = "offline"
+# for k, v in vrcz.friend_objects.items():
+#     v.location = "offline"
+#     v.status = "offline"
 vrcz.save_app_data()
 RUNNING = False
 time.sleep(1)
