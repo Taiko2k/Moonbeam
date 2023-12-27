@@ -1,6 +1,24 @@
 
 # Moonbeam VRC
- 
-A modern GNOME styled VRChat friendship management tool. Build using GTK4 + Adwaita. Intended to be an alternative to [VRCX](https://github.com/vrcx-team/VRCX) but for Linux.
 
-Not particularly usable in its current state.
+A VRChat friend manager for Linux. Intended to be an alternative to [VRCX](https://github.com/vrcx-team/VRCX).
+
+Current features:
+
+ - See which of your friends are online
+ - View friend information
+ - Location tracker
+ - Youtube URL extraction
+
+Planned features:
+
+ - Friend log
+ - World information
+ - Instance information
+ - Add/Remove friend
+ - More
+
+### Building / Installing
+
+todo
+
