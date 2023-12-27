@@ -160,7 +160,7 @@ def format_time(t):
     if time_diff < datetime.timedelta(days=1):  # If the difference is less than 24 hours
         formatted_time = dt.strftime('%I:%M%p').lower()
     else:
-        formatted_time = dt.strftime('%a %d %b %I:%M%p').replace(" 0", " ").lower()
+        formatted_time = dt.strftime('%d %b %I:%M%p').replace(" 0", " ").lower()
 
     return formatted_time
 
@@ -520,7 +520,7 @@ class VRCZ:
         for k, v in self.worlds.items():
             worlds[k] = copy.deepcopy(v.__dict__)
             del worlds[k]["instances"]
-            del worlds[k]["last_fetched"]
+            #del worlds[k]["last_fetched"]
 
         d["friends"] = friends
         d["self"] = self.user_object.__dict__
@@ -688,15 +688,27 @@ class VRCZ:
                 if job.name == "event":
                     self.process_event(job.data)
 
-                if job.name == "refresh-friend-db-offline":
+                if job.name == "update":
+                    job = Job("spinner-start")
+                    self.posts.append(job)
+                    self.update()
+                    job = Job("spinner-stop")
+                    self.posts.append(job)
 
+                if job.name == "refresh-friend-db-offline":
+                    job = Job("spinner-start")
+                    self.posts.append(job)
                     friends_api_instance = friends_api.FriendsApi(self.api_client)
 
                     n = 100
                     offset = 0
                     while True:
                         rl.inhibit()
-                        next = friends_api_instance.get_friends(n=n, offset=offset, offline="true")
+                        try:
+                            next = friends_api_instance.get_friends(n=n, offset=offset, offline="true")
+                        except Exception as e:
+                            print(str(e))
+                            break
                         if not next:
                             break
                         for r in next:
@@ -713,14 +725,26 @@ class VRCZ:
                     self.posts.append(job)
                     job = Job("update-friend-list")
                     self.posts.append(job)
+                    job = Job("spinner-stop")
+                    self.posts.append(job)
 
                 if job.name == "refresh-friend-db":
+
+                    job = Job("spinner-start")
+                    self.posts.append(job)
+
                     friends_api_instance = friends_api.FriendsApi(self.api_client)
                     n = 100
                     offset = 0
                     while True:
                         rl.inhibit()
-                        next = friends_api_instance.get_friends(n=n, offset=offset)
+
+                        try:
+                            next = friends_api_instance.get_friends(n=n, offset=offset)
+                        except Exception as e:
+                            print("!!!")
+                            print(str(e))
+                            break
 
                         if not next:
                             break
@@ -738,6 +762,8 @@ class VRCZ:
                     job = Job("update-friend-rows")
                     self.posts.append(job)
                     job = Job("update-friend-list")
+                    self.posts.append(job)
+                    job = Job("spinner-stop")
                     self.posts.append(job)
 
 
@@ -996,6 +1022,10 @@ class MainWindow(Adw.ApplicationWindow):
         self.header.set_title_widget(self.vsw1)
         self.t1.set_content(self.vst1)
 
+        self.spinner = Gtk.Spinner()
+        #self.spinner.start()
+        self.header.pack_end(self.spinner)
+
 
         # ------------------ Info page
 
@@ -1007,19 +1037,16 @@ class MainWindow(Adw.ApplicationWindow):
         self.set_style(self.info_box_holder, "view")
 
         self.info_box_outer_holder = Gtk.Box()
-        self.info_box_clamp.set_child(self.info_box_outer_holder)
         self.info_box_outer_holder.append(self.info_box_holder)
+
+        self.info_box_outer_scroll = Gtk.ScrolledWindow()
+        self.info_box_outer_scroll.set_vexpand(True)
+        self.info_box_outer_scroll.set_child(self.info_box_outer_holder)
+
+        self.info_box_clamp.set_child(self.info_box_outer_scroll)
 
         self.info_box_holder.set_margin_top(10)
 
-        # self.info_box_footer = Gtk.Box()
-        # self.info_box_footer.set_hexpand(True)
-        # self.info_box_outer_holder.append(self.info_box_footer)
-
-        # # Just empty space right now
-        # self.info_box_header = Gtk.Box()
-        # self.info_box_holder.append(self.info_box_header)
-        # self.info_box_header.set_margin_top(10)
 
         self.row1and2 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.row1and2.set_hexpand(True)
@@ -1028,18 +1055,9 @@ class MainWindow(Adw.ApplicationWindow):
         self.row1and2andpic.append(self.row1and2)
 
         self.banner = Gtk.Image()
-        self.banner.set_size_request(220, 150)
+        self.banner.set_size_request(220, 100)
 
-        # box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        # box.append(self.banner)
-        # box2 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        # box2.set_vexpand(True)
-        # box.append(box2)
-        #
-        # box3 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
-        # box2.set_hexpand(True)
-        #
-        # self.row1and2andpic.append(box3)
+
         self.row1and2andpic.append(self.banner)
 
         self.info_box_holder.append(self.row1and2andpic)
@@ -1091,6 +1109,33 @@ class MainWindow(Adw.ApplicationWindow):
         self.set_style(self.info_rank, "property")
         self.status_row.append(self.info_rank)
 
+
+
+        self.info_status = Adw.ActionRow()
+        self.info_status.set_subtitle("Test")
+        self.info_status.set_subtitle_selectable(True)
+        self.info_status.set_title("Status")
+        self.set_style(self.info_status, "property")
+        self.row1and2.append(self.info_status)
+
+        self.row4 = Gtk.ListBox()
+        self.info_box_holder.append(self.row4)
+
+        self.info_bio = Adw.ActionRow()
+        self.info_bio.set_subtitle("Example bio")
+        self.info_bio.set_subtitle_selectable(True)
+        self.info_bio.set_title("Bio")
+        self.set_style(self.info_bio, "property")
+
+        self.row4.append(self.info_bio)
+
+        self.info_note = Adw.ActionRow()
+        self.info_note.set_subtitle(" ")
+        self.info_note.set_subtitle_selectable(True)
+        self.info_note.set_title("Note")
+        self.set_style(self.info_note, "property")
+
+        self.row4.append(self.info_note)
 
         #self.info_box_holder.append(self.row2)
 
@@ -1434,7 +1479,16 @@ class MainWindow(Adw.ApplicationWindow):
                 rank = "Trusted User"
         else:
             rank = "Unknown"
+
         self.info_rank.set_subtitle(rank)
+
+        self.info_status.set_subtitle(p.status_description)
+        self.info_bio.set_subtitle(p.bio)
+
+        text = p.note
+        if not text:
+            text = " "
+        self.info_note.set_subtitle(text)
 
         # world_id = vrcz.parse_world_id(p.location)
         # vrcz.load_world(world_id)
@@ -1604,6 +1658,12 @@ class MainWindow(Adw.ApplicationWindow):
             #print("post")
             #print(post.name)
 
+            if post.name == "spinner-start":
+                print("STARTTTTTTTTTTTTTTTTTT")
+                self.spinner.start()
+            if post.name == "spinner-stop":
+                print("STOPPPPPPPPPPPPP")
+                self.spinner.stop()
             if post.name == "check-user-info-banner":
                 if self.selected_user_info and self.selected_user_info == post.data:
                     URL = self.selected_user_info.get_banner_url()
@@ -1633,10 +1693,12 @@ class MainWindow(Adw.ApplicationWindow):
 
                 label = Gtk.Label(label=format_time(event.timestamp))
                 self.set_style(label, "dim-label")
-                self.set_style(label, "monospace")
+                #self.set_style(label, "monospace")
+                self.set_style(label, "caption")
                 label.set_margin_end(3)
                 label.set_size_request(70, -1)
-                label.set_xalign(0)
+                label.set_xalign(1)
+                label.set_size_request(150, -1)
                 box.append(label)
 
 
@@ -1780,11 +1842,14 @@ class MainWindow(Adw.ApplicationWindow):
         vrcz.posts.append(job)
 
     def test3(self, button):
-        if vrcz.update():
-            button.set_sensitive(False)
-            self.login_box.set_visible(True)
-        else:
-            self.vst1.set_visible_child_name("login")
+        job = Job("update")
+        vrcz.jobs.append(job)
+        button.set_sensitive(False)
+        # if vrcz.update():
+        #     button.set_sensitive(False)
+        #     self.login_box.set_visible(True)
+        # else:
+        #     self.vst1.set_visible_child_name("login")
 
 
     def update_friend_list(self):
