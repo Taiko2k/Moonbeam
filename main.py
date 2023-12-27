@@ -106,29 +106,29 @@ class Timer:
             self.force_set(force)
 
     def set(self):  # Reset
-        self.start = time.monotonic()
+        self.start = time.time()
 
     def hit(self):  # Return time and reset
 
-        self.end = time.monotonic()
+        self.end = time.time()
         elapsed = self.end - self.start
-        self.start = time.monotonic()
+        self.start = time.time()
         return elapsed
 
     def get(self):  # Return time only
-        self.end = time.monotonic()
+        self.end = time.time()
         return self.end - self.start
 
     def force_set(self, sec):
-        self.start = time.monotonic()
+        self.start = time.time()
         self.start -= sec
 
 
 class RateLimiter:
     def __init__(self):
         self.last_call_time = None
-        self.interval = 5
-        self.burst = 5
+        self.interval = 6
+        self.burst = 10
 
     def inhibit(self):
         self.burst -= 1
@@ -435,6 +435,7 @@ class VRCZ:
 
         type = data["type"]
         content = data["content"]
+
         if content and content.startswith("{"):
             content = json.loads(content)
 
@@ -508,10 +509,12 @@ class VRCZ:
                     for k, v in d["worlds"].items():
                         world = World(**v)
                         self.worlds[k] = world
-                if "db_online_timer" in d:
-                    self.online_friend_db_update_timer = d["db_online_timer"]
-                if "db_offline_timer" in d:
-                    self.offline_friend_db_update_timer = d["db_offline_timer"]
+                if "db_online_time" in d:
+                    self.online_friend_db_update_timer = Timer()
+                    self.online_friend_db_update_timer.start = d["db_online_time"]
+                if "db_offline_time" in d:
+                    self.offline_friend_db_update_timer = Timer()
+                    self.offline_friend_db_update_timer.start = d["db_offline_time"]
 
     def save_app_data(self):
         if not self.logged_in:
@@ -529,15 +532,14 @@ class VRCZ:
             del worlds[k]["instances"]
             #del worlds[k]["last_fetched"]
 
-        if self.online_friend_db_update_timer:
-            self.online_friend_db_update_timer.set()
-
         d["friends"] = friends
         d["self"] = self.user_object.__dict__
         d["events"] = self.events
         d["worlds"] = worlds
-        d["db_online_timer"] = self.online_friend_db_update_timer
-        d["db_offline_timer"] = self.offline_friend_db_update_timer
+        if self.online_friend_db_update_timer:
+            d["db_online_time"] = self.online_friend_db_update_timer.start
+        if self.offline_friend_db_update_timer:
+            d["db_offline_time"] = self.offline_friend_db_update_timer.start
         with open(DATA_FILE, 'wb') as file:
             pickle.dump(d, file)
 
@@ -584,6 +586,7 @@ class VRCZ:
         for key in COPY_FRIEND_PROPERTIES:
             if hasattr(r, key):
                 setattr(t, key, getattr(r, key))
+
         job = Job("download-check-user-icon", t)
         self.jobs.append(job)
         job = Job("download-check-user-avatar-thumbnail", t)
@@ -618,7 +621,7 @@ class VRCZ:
             friend = self.friend_objects.get(id)
             if friend:
                 friend.status = "active"
-                friend.location = "unknown"
+
         for id in user.active_friends:
             friend = self.friend_objects.get(id)
             if friend:
@@ -640,10 +643,9 @@ class VRCZ:
         if not self.online_friend_db_update_timer:
             self.online_friend_db_update_timer = Timer()
             go = True
-        else:
-            if self.online_friend_db_update_timer.get() > 30:  # 30s
-                go = True
-
+        elif self.online_friend_db_update_timer.get() > 30:  # 30s
+            go = True
+        print(self.online_friend_db_update_timer.get())
         if go:
             job = Job("refresh-friend-db")
             self.jobs.append(job)
@@ -899,12 +901,14 @@ class VRCZ:
         try:
             rl.inhibit()
             w = self.world_api.get_world(id)
-            world.last_fetched.set()
+
             world.load_from_api_model(w)
 
         except Exception as e:
+            #raise
             print(str(e))
 
+        world.last_fetched.set()
         #print(w)
 
         self.worlds[id] = world
@@ -1846,7 +1850,8 @@ class MainWindow(Adw.ApplicationWindow):
                                         else:
                                             if world_id not in vrcz.worlds_to_load:
                                                 vrcz.worlds_to_load.append(world_id)
-
+                                    if not text:
+                                        text = world_id
 
                                     label = Gtk.Label()
                                     label.set_markup(f"{text}")
@@ -1999,6 +2004,8 @@ app.run(sys.argv)
 # for k, v in vrcz.friend_objects.items():
 #     v.location = "offline"
 #     v.status = "offline"
+if vrcz.online_friend_db_update_timer:
+    vrcz.online_friend_db_update_timer.set()
 vrcz.save_app_data()
 RUNNING = False
 time.sleep(1)
