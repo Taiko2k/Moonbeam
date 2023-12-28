@@ -7,32 +7,40 @@
    viewBox="0 0 55.803024 55.803024"
    version="1.1"
    id="svg11778"
+   inkscape:version="1.2.2 (b0a84865, 2022-12-01)"
+   sodipodi:docname="moonbeam2.svg"
+   inkscape:export-filename="icon.png"
+   inkscape:export-xdpi="58.262074"
+   inkscape:export-ydpi="58.262074"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns:xlink="http://www.w3.org/1999/xlink"
    xmlns="http://www.w3.org/2000/svg"
    xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview11780"
+     pagecolor="#3a3e3e"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     showgrid="false"
+     inkscape:zoom="1.8125643"
+     inkscape:cx="57.928978"
+     inkscape:cy="74.480115"
+     inkscape:window-width="1309"
+     inkscape:window-height="456"
+     inkscape:window-x="0"
+     inkscape:window-y="25"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="layer1" />
   <defs
      id="defs11775">
     <linearGradient
-       xlink:href="#linearGradient10273"
-       id="linearGradient6913"
-       gradientUnits="userSpaceOnUse"
-       x1="81.299255"
-       y1="194.34848"
-       x2="140.4697"
-       y2="157.78787"
-       gradientTransform="translate(12.613498,-47.725106)" />
-    <linearGradient
-       id="linearGradient10273">
-      <stop
-         style="stop-color:#1a4fbb;stop-opacity:1;"
-         offset="0"
-         id="stop10269" />
-      <stop
-         style="stop-color:#dfa0e9;stop-opacity:1;"
-         offset="1"
-         id="stop10271" />
-    </linearGradient>
-    <linearGradient
+       inkscape:collect="always"
        xlink:href="#linearGradient7317"
        id="linearGradient6915"
        gradientUnits="userSpaceOnUse"
@@ -42,6 +50,7 @@
        y2="157.78787"
        gradientTransform="translate(12.613498,-47.725106)" />
     <linearGradient
+       inkscape:collect="always"
        id="linearGradient7317">
       <stop
          style="stop-color:#00dabb;stop-opacity:1;"
@@ -53,6 +62,7 @@
          id="stop7315" />
     </linearGradient>
     <linearGradient
+       inkscape:collect="always"
        xlink:href="#linearGradient7323"
        id="linearGradient6917"
        gradientUnits="userSpaceOnUse"
@@ -60,8 +70,9 @@
        y1="150.57195"
        x2="130.84848"
        y2="190.98106"
-       gradientTransform="translate(12.613488,-47.725102)" />
+       gradientTransform="translate(12.613493,-47.725093)" />
     <linearGradient
+       inkscape:collect="always"
        id="linearGradient7323">
       <stop
          style="stop-color:#000000;stop-opacity:0;"
@@ -84,14 +95,10 @@
     </clipPath>
   </defs>
   <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
      id="layer1"
      transform="translate(-99.204414,-88.896095)">
-    <circle
-       style="fill:url(#linearGradient6913);fill-opacity:1;stroke:none;stroke-width:9.72299;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke fill markers"
-       id="circle10261-9"
-       cx="127.10593"
-       cy="116.79761"
-       r="27.901512" />
     <circle
        style="fill:url(#linearGradient6915);fill-opacity:1;stroke:none;stroke-width:9.72299;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke fill markers"
        id="circle13181-1"
@@ -108,6 +115,7 @@
        style="fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
        d="m 143.35606,121.70833 -38.6696,32.90487 c 0,0 -5.673959,4.23344 -6.069036,15.20118 -0.773274,21.46689 16.755556,26.54919 25.015146,31.26896 L 91.401515,241.01136 24.534091,149.60985 84.666666,116.89773 Z"
        id="path14842-5"
+       sodipodi:nodetypes="ccsccccc"
        clip-path="url(#clipPath14836-4)"
        transform="translate(12.613495,-47.725113)" />
   </g>
