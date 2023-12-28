@@ -1,5 +1,5 @@
 
-# Moonbeam VRC
+# VRC Reiki
 
 A VRChat friend manager for Linux. Intended to be an alternative to [VRCX](https://github.com/vrcx-team/VRCX).
 
