@@ -245,6 +245,7 @@ class FriendRow(GObject.Object):
         self.status = 0
         self.is_user = False
         self.id = None
+        self.is_favorite = False
         self.public_count = ""
 
 class Friend():
@@ -326,6 +327,9 @@ class VRCZ:
         self.auth_api = authentication_api.AuthenticationApi(self.api_client)
         self.world_api = vrchatapi.WorldsApi(self.api_client)
         self.instance_api = vrchatapi.InstancesApi(self.api_client)
+        self.favorites_api = vrchatapi.FavoritesApi(self.api_client)
+
+        self.favorite_friends = {}
 
         self.cookie_file_path = 'cookie_data'
 
@@ -673,6 +677,13 @@ class VRCZ:
         self.jobs.append(job)
         job = Job("download-check-user-avatar-thumbnail", self.user_object)
         self.jobs.append(job)
+
+        ff = self.favorites_api.get_favorites(n=100, offset=0, type="friend")
+        self.favorite_friends.clear()
+        if ff:
+            for fav in ff:
+                self.favorite_friends[fav.favorite_id] = fav.id
+
 
 
         print(f"Logged in as: {self.current_user_name}")
@@ -1555,13 +1566,18 @@ class MainWindow(Adw.ApplicationWindow):
         if row and friend:
             # if friend.location == "offline":
             #     return
-            print("LOAD ROW --------")
-            print(f"friend: {friend.display_name}")
-            print(f"location: {friend.location}")
+            # print("LOAD ROW --------")
+            # print(f"friend: {friend.display_name}")
+            # print(f"location: {friend.location}")
+            # print(f"location: {friend.}")
 
-            row.name = f"<b>{friend.display_name}</b>"
+            name = f"<b>{friend.display_name}</b>"
+            if friend.id in vrcz.favorite_friends:
+                name += " ⭐"
+            row.name = name
             count = ""
             location = ""
+            row.is_favorite = friend.id in vrcz.favorite_friends
 
             if not friend.location:
                 location = "<small>Unknown</small>"
@@ -1581,48 +1597,49 @@ class MainWindow(Adw.ApplicationWindow):
                     #row.location = f"<small>{world.name}</small>"
                     location = f"<span foreground=\"#efb5f5\"><b><small>{world.name}</small></b></span>"
 
-                    hidden = "~hidden" in friend.location
-                    #print(f"hidden: {~hidden == True}")
+                    # hidden = "~hidden" in friend.location
 
-                    # Try get instance count from public info
-                    if not hidden:
+                    # print(f"hidden: {~hidden == True}")
 
-                        if world.last_fetched and world.last_fetched.get() < WORLD_CACHE_DURATION:
-                            pass
-                        else:
-                            print("request world reload")
-                            vrcz.worlds_to_load.append(world_id)
-
-                        print("Got world")
-                        print(f"world name: {world.name}")
-                        print("Instances: V")
-                        print(world.instances)
-                        capacity = world.capacity
-
-                        if world.instances:
-                            player_instance = vrcz.parse_world_instance(friend.location)
-                            if player_instance:
-                                print(world.instances)
-                                for instance in world.instances:
-                                    if instance[0].split("~")[0] == player_instance:
-                                        count = str(instance[1])
-                                        break
-                                else:
-                                    print("no match")
-                            else:
-                                print("no parse")
-                        else:
-                            print("no instances")
-
-                        if not count:
-                            #print("get from instance...")
-                            instance = vrcz.instance_from_location(friend.location)
-                            if instance and instance.n_users:
-                                # print("got count from instance")
-                                # print(dir(instance))
-                                count = str(instance.n_users)
-
-                        print(f"count: {count}")
+                    # # Try get instance count from public info
+                    # if not hidden:
+                    #
+                    #     if world.last_fetched and world.last_fetched.get() < WORLD_CACHE_DURATION:
+                    #         pass
+                    #     else:
+                    #         print("request world reload")
+                    #         vrcz.worlds_to_load.append(world_id)
+                    #
+                    #     print("Got world")
+                    #     print(f"world name: {world.name}")
+                    #     print("Instances: V")
+                    #     print(world.instances)
+                    #     capacity = world.capacity
+                    #
+                    #     if world.instances:
+                    #         player_instance = vrcz.parse_world_instance(friend.location)
+                    #         if player_instance:
+                    #             print(world.instances)
+                    #             for instance in world.instances:
+                    #                 if instance[0].split("~")[0] == player_instance:
+                    #                     count = str(instance[1])
+                    #                     break
+                    #             else:
+                    #                 print("no match")
+                    #         else:
+                    #             print("no parse")
+                    #     else:
+                    #         print("no instances")
+                    #
+                    #     if not count:
+                    #         #print("get from instance...")
+                    #         instance = vrcz.instance_from_location(friend.location)
+                    #         if instance and instance.n_users:
+                    #             # print("got count from instance")
+                    #             # print(dir(instance))
+                    #             count = str(instance.n_users)
+                    #
+                    #     print(f"count: {count}")
 
                 else:
                     if world_id not in vrcz.worlds_to_load:
@@ -1641,21 +1658,19 @@ class MainWindow(Adw.ApplicationWindow):
             elif ":" in friend.location:
                 instance_type = "Public"
 
-
-
             text = ""
             if instance_type:
                 text = f"<small><b><span background=\"#444444\"> {instance_type} </span></b></small> "
 
-            if count:
-                text += f" <span foreground=\"#f2d37e\"><b><small>{count}/{capacity} </small></b></span> "
+            # if count:
+            #     text += f" <span foreground=\"#f2d37e\"><b><small>{count}/{capacity} </small></b></span> "
 
             text += location
             if row.location != text:
                 row.location = text
 
-            if row.public_count != count:
-                row.public_count = count
+            # if row.public_count != count:
+            #     row.public_count = count
 
 
 
@@ -1908,7 +1923,10 @@ class MainWindow(Adw.ApplicationWindow):
         for k, v in vrcz.friend_objects.items():
             if k not in self.friend_data:
                 fd = FriendRow()
+            # else:
+            #     fd = self.friend_data[k]
                 fd.id = k
+                #fd.is_favorite = k in vrcz.favorite_friends
                 self.friend_data[k] = fd
                 self.set_friend_row_data(k)
                 self.friend_ls.append(fd)
@@ -1916,17 +1934,28 @@ class MainWindow(Adw.ApplicationWindow):
         def get_weight(row):
             if row.is_user:
                 return -1
+
+            if row.is_favorite:
+                if row.status == 4:
+                    return 1
+                if row.status == 2:
+                    return 2
+                if row.status == 5:
+                    return 3
+                if row.status == 3:
+                    return 4
+
             if row.status == 4:
-                return 0
+                return 10
             if row.status == 2:
-                return 1
+                return 20
             if row.status == 5:
-                return 2
+                return 30
             if row.status == 3:
-                return 3
+                return 40
             if row.status == 1:
-                return 4
-            return 5
+                return 50
+            return 60
 
 
         def compare(a, b):
