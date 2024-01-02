@@ -26,9 +26,9 @@ import datetime
 import copy
 
 
-APP_TITLE = "Moonbeam VRC"
+APP_TITLE = "VRC Reiki"
 VERSION = "v0.1 indev"
-USER_AGENT = 'taiko2k-moonbeam'
+USER_AGENT = 'taiko2k-vrcreiki'
 REQUEST_DL_HEADER = {
     'User-Agent': USER_AGENT,
 }
@@ -1995,7 +1995,7 @@ class MOONBEAM(Adw.Application):
         self.win.present()
 
 
-app = MOONBEAM(application_id="com.github.taiko2k.moonbeam")
+app = MOONBEAM(application_id="com.github.taiko2k.vrcreiki")
 app.run(sys.argv)
 
 # if vrcz.user_object:
