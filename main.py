@@ -127,8 +127,8 @@ class Timer:
 class RateLimiter:
     def __init__(self):
         self.last_call_time = None
-        self.interval = 6
-        self.burst = 10
+        self.interval = 5
+        self.burst = 6
 
     def inhibit(self):
         self.burst -= 1
@@ -599,6 +599,7 @@ class VRCZ:
         self.friend_objects[r.id] = t
 
     def update(self):
+        #return
 
         # Try authenticate
         try:
@@ -1053,7 +1054,7 @@ class MainWindow(Adw.ApplicationWindow):
 
         self.outer_box = Gtk.Box()
 
-        self.set_default_size(1200, 650)
+        self.set_default_size(1300, 650)
         self.set_title(APP_TITLE)
 
         self.nav = Adw.NavigationSplitView()
@@ -1083,22 +1084,61 @@ class MainWindow(Adw.ApplicationWindow):
         # ------------------ Info page
 
         self.info_box_clamp = Adw.Clamp()
-        self.info_box_clamp.set_maximum_size(700)
-        self.vst1.add_titled_with_icon(self.info_box_clamp, "info", "Player Info", "user-info-symbolic")
+        self.info_box_clamp.set_maximum_size(1200)
+        self.info_box_clamp.set_tightening_threshold(1000)
+
+        self.vst1.add_titled_with_icon(self.info_box_clamp, "info", "Info", "user-info-symbolic")
+
+
+        self.outer_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        self.outer_box.set_margin_start(10)
+        self.outer_box.set_margin_end(10)
+        self.info_box_clamp.set_child(self.outer_box)
+
+
+        self.world_box_outer_holder = Gtk.Box()
+        self.world_box_holder = Gtk.Box()
+        self.world_box_holder.set_size_request(300, -1)
+        self.world_box_holder.set_hexpand(True)
+        self.world_box_holder.set_margin_top(10)
+        self.set_style(self.world_box_holder, "view")
+
+        self.world_box_outer_scroll = Gtk.ScrolledWindow()
+        self.world_box_outer_scroll.set_vexpand(True)
+        self.world_box_outer_scroll.set_child(self.world_box_outer_holder)
+        self.world_box_outer_holder.append(self.world_box_holder)
+
+
+
+        label = Gtk.Label()
+        label.set_text("test test test")
+        self.world_box_holder.append(label)
+
 
         self.info_box_holder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.info_box_holder.set_hexpand(True)
+        #self.info_box_holder.set_size_request(800, -1)
+
+
+        self.info_box_holder.set_margin_top(10)
         self.set_style(self.info_box_holder, "view")
 
         self.info_box_outer_holder = Gtk.Box()
         self.info_box_outer_holder.append(self.info_box_holder)
 
         self.info_box_outer_scroll = Gtk.ScrolledWindow()
-        self.info_box_outer_scroll.set_vexpand(True)
+        #self.info_box_outer_scroll.set_vexpand(True)
         self.info_box_outer_scroll.set_child(self.info_box_outer_holder)
 
-        self.info_box_clamp.set_child(self.info_box_outer_scroll)
+        #self.info_box_clamp.set_child(self.info_box_outer_scroll)
 
-        self.info_box_holder.set_margin_top(10)
+
+        self.outer_box.append(self.info_box_outer_scroll)
+        self.info_spacer = Gtk.Box()
+        self.info_spacer.set_size_request(10, -1)
+        self.outer_box.append(self.info_spacer)
+        self.outer_box.append(self.world_box_outer_scroll)
+
 
 
         self.row1and2 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -1107,11 +1147,28 @@ class MainWindow(Adw.ApplicationWindow):
         self.row1and2andpic = Gtk.Box()
         self.row1and2andpic.append(self.row1and2)
 
-        self.banner = Gtk.Image()
-        self.banner.set_size_request(220, 100)
+        self.banner_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        self.banner = Gtk.Picture()
+        self.banner.set_size_request(-1, 170)
+        self.banner.set_can_shrink(True)
+        self.banner.set_valign(Gtk.Align.START)
+        # self.banner.set_margin_bottom(-90)
+        # self.banner.set_margin_top(-90)
+        #self.banner.set_hexpand(True)
+        self.banner.set_content_fit(Gtk.ContentFit.CONTAIN)
+        #self.banner.set_margin_top(0)
+
+       # self.row1and2andpic.append(self.banner)
+        filler = Gtk.Box()
+        filler.set_hexpand(True)
+        self.banner_box.append(filler)
+        self.banner_box.append(self.banner)
+        filler = Gtk.Box()
+        filler.set_hexpand(True)
+        self.banner_box.append(filler)
 
 
-        self.row1and2andpic.append(self.banner)
+        self.info_box_holder.append(self.banner_box)
 
         self.info_box_holder.append(self.row1and2andpic)
 
@@ -1172,6 +1229,8 @@ class MainWindow(Adw.ApplicationWindow):
         self.row1and2.append(self.info_status)
 
         self.row4 = Gtk.ListBox()
+        self.row4.set_selection_mode(Gtk.SelectionMode.NONE)
+
         self.info_box_holder.append(self.row4)
 
         self.info_bio = Adw.ActionRow()
@@ -1314,7 +1373,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.c4 = Adw.Clamp()
         self.c4.set_maximum_size(1000)
         self.c4.set_child(self.event_box_holder)
-        self.vst1.add_titled_with_icon(self.c4, "event", "Event Log", "find-location-symbolic")
+        self.vst1.add_titled_with_icon(self.c4, "event", "Tracker", "find-location-symbolic")
 
         self.events_empty = True
         self.events_empty_status = Adw.StatusPage()
@@ -1461,7 +1520,8 @@ class MainWindow(Adw.ApplicationWindow):
         ''')
 
         self.selected_user_info = None
-
+        if vrcz.user_object:
+            self.set_profie_view(vrcz.user_object.id)
         GLib.timeout_add(900, self.heartbeat)
 
 
@@ -1493,14 +1553,14 @@ class MainWindow(Adw.ApplicationWindow):
             key = extract_filename(URL)
             key_path = os.path.join(USER_ICON_CACHE, key)
             if os.path.isfile(key_path):
-                self.banner.set_from_file(key_path)
+                self.banner.set_filename(key_path)
             else:
-                self.banner.set_from_icon_name("image-loading-symbolic")
+                self.banner.set_resource("image-loading-symbolic")
                 job = Job("download-check-user-banner")
                 job.data = p
                 vrcz.jobs.append(job)
         else:
-            self.banner.set_from_file(None)
+            self.banner.set_filename(None)
 
         self.info_name.set_subtitle(p.display_name)
         lang_line = " "
@@ -1556,6 +1616,8 @@ class MainWindow(Adw.ApplicationWindow):
         selected_item = selection.get_selected_item()
         if selected_item is not None:
             self.set_profie_view(selected_item.id)
+        self.vst1.set_visible_child_name("info")
+
 
     def set_friend_row_data(self, id):
 
@@ -1705,7 +1767,10 @@ class MainWindow(Adw.ApplicationWindow):
                         row.mini_icon_filepath = key_path
 
     def click_user(self, button, user):
-        print(user)
+        if user.id:
+            self.set_profie_view(user.id)
+            self.vst1.set_visible_child_name("info")
+
 
     def heartbeat(self):
         update_friend_list = False
@@ -1727,9 +1792,9 @@ class MainWindow(Adw.ApplicationWindow):
                     key = extract_filename(URL)
                     key_path = os.path.join(USER_ICON_CACHE, key)
                     if URL and os.path.isfile(key_path):
-                        self.banner.set_from_file(key_path)
+                        self.banner.set_filename(key_path)
                     else:
-                        self.banner.set_from_file(None)
+                        self.banner.set_filename(None)
             if post.name == "update-friend-list":
                 update_friend_list = True
             if post.name == "update-friend-rows":
