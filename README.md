@@ -1,8 +1,8 @@
 
 <div align="center">
-<img src="com.github.taiko2k.vrcreiki.svg" alt="Alt text" width="80" height="80"//>
+<img src="com.github.taiko2k.moonbeam.svg" alt="Alt text" width="80" height="80"//>
  
-## VRC Reiki
+## Moonbeam VRC
 A VRChat friend manager for Linux. 
 </div>
 
