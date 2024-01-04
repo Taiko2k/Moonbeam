@@ -599,7 +599,7 @@ class VRCZ:
         self.friend_objects[r.id] = t
 
     def update(self):
-        #return
+        return
 
         # Try authenticate
         try:
@@ -1052,14 +1052,17 @@ class MainWindow(Adw.ApplicationWindow):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.outer_box = Gtk.Box()
 
         self.set_default_size(1300, 650)
         self.set_title(APP_TITLE)
 
+        self.login_toolbarview = Adw.ToolbarView()
+        self.login_header = Adw.HeaderBar()
+        self.login_toolbarview.add_top_bar(self.login_header)
+
+
         self.nav = Adw.NavigationSplitView()
         self.nav.set_max_sidebar_width(260)
-        self.set_content(self.nav)
         self.header = Adw.HeaderBar()
         self.n1 = Adw.NavigationPage()
         self.n0 = Adw.NavigationPage()
@@ -1068,6 +1071,10 @@ class MainWindow(Adw.ApplicationWindow):
         self.n1.set_child(self.t1)
         self.nav.set_content(self.n1)
         self.nav.set_sidebar(self.n0)
+
+        #self.set_content(self.nav)
+        self.set_content(self.login_toolbarview)
+
 
         self.vsw1 = Adw.ViewSwitcher()
         self.vst1 = Adw.ViewStack()
@@ -1088,7 +1095,6 @@ class MainWindow(Adw.ApplicationWindow):
         self.info_box_clamp.set_tightening_threshold(1000)
 
         self.vst1.add_titled_with_icon(self.info_box_clamp, "info", "Info", "user-info-symbolic")
-
 
         self.outer_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         self.outer_box.set_margin_start(10)
