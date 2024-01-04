@@ -15,4 +15,4 @@ Current features:
  - Location tracker
  - Youtube URL extraction
 
-⚠️ This app is currently alpha quality
+⚠️ This app is currently alpha quality and not ready for general use. Leave a star and come back later!
