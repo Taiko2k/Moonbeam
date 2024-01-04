@@ -597,6 +597,9 @@ class VRCZ:
         self.friend_objects[r.id] = t
 
     def update(self):
+        job = Job("login-done")
+        self.posts.append(job)
+        return
 
         # Try authenticate
         try:
@@ -1127,7 +1130,6 @@ class MainWindow(Adw.ApplicationWindow):
         filler.set_hexpand(True)
         go_box.append(filler)
         self.login_spinner = Gtk.Spinner()
-        self.login_spinner.set_margin_top(-58)
         self.login_spinner.set_margin_end(12)
         go_box.append(self.login_spinner)
 
@@ -1525,66 +1527,6 @@ class MainWindow(Adw.ApplicationWindow):
 
         self.c3 = Adw.Clamp()
         self.c3.set_child(self.login_box)
-        self.vst1.add_titled_with_icon(self.c3, "login", "Login", "dialog-password-symbolic")
-
-        #self.login_box.set_size_request(200, -1)
-        self.login_box.set_spacing(6)
-        self.login_box.set_margin_top(12)
-        self.login_box.set_margin_bottom(12)
-        self.login_box.set_margin_start(12)
-        self.login_box.set_margin_end(12)
-        #self.outer_box.append(self.login_box)
-
-        self.stage1_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-
-
-        #self.username_entry = Gtk.Entry(placeholder_text="Username")
-
-
-        #self.stage1_box.append(self.username_entry)
-        self.stage1_box.append(self.password_entry)
-
-
-        self.request_code_button = Gtk.Button(label="Request Code")
-        self.request_code_button.set_margin_bottom(30)
-        self.request_code_button.connect("clicked", self.login_go)
-        self.stage1_box.append(self.request_code_button)
-
-        self.login_status_label = Gtk.Label(label="")
-        self.stage1_box.append(self.login_status_label)
-
-
-        self.login_box.append(self.stage1_box)
-
-        self.stage2_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        self.stage2_box.set_visible(False)
-
-
-        self.stage2_box.append(self.two_fa_entry)
-
-        # self.login_button = Gtk.Button(label="Verify Code")
-        # self.login_button.connect("clicked", self.activate_verify_code)
-        self.stage2_box.append(self.login_button)
-        self.login_button.set_margin_bottom(60)
-        self.login_box.append(self.stage2_box)
-
-        self.stage3_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        self.stage3_box.set_visible(False)
-
-        self.logout_button = Gtk.Button(label="Logout")
-        self.logout_button.connect("clicked", self.activate_logout)
-        self.logout_button.set_margin_bottom(20)
-        self.stage3_box.append(self.logout_button)
-        self.login_box.append(self.stage3_box)
-
-        # if os.path.isfile(vrcz.cookie_file_path):
-        #     self.stage1_box.set_visible(False)
-        #     self.stage3_box.set_visible(True)
-
-
-        # self.test_button = Gtk.Button(label="_test")
-        # self.test_button.connect("clicked", self.activate_test)
-        # self.login_box.append(self.test_button)
 
         #self.login_box.set_visible(False)
 
@@ -2193,66 +2135,7 @@ class MainWindow(Adw.ApplicationWindow):
         job.data = (username, password, code)
         vrcz.jobs.append(job)
 
-        return
-
-        # try:
-        #     code = self.two_fa_entry.get_text()
-        #     if code:
-        #         self.two_fa_entry.set_text("")
-        #         vrcz.sign_in_step2(code)
-        #         return
-        #     #print(1/0)
-        #     vrcz.sign_in_step1(username, password)
-        #     # self.login_status_label.set_text(vrcz.last_status)
-        #     # self.stage3_box.set_visible(False)
-        #     # self.stage2_box.set_visible(True)
-        #     # self.stage1_box.set_visible(False)
-        # except UnauthorizedException as e:
-        #     if "Invalid Username" in e.reason:
-        #         self.login_toast.set_title("Invalid username, email or password")
-        #         self.login_toast_overlay.add_toast(self.login_toast)
-        #     if "2 Factor Authentication" in e.reason:
-        #         self.login_toast.set_title("Please enter you 2FA code")
-        #         self.login_toast_overlay.add_toast(self.login_toast)
-        #         self.two_fa_entry.set_visable(True)
-        #         self.two_fa_entry.set_sensitive(True)
-        #         self.login_box.set_visable(False)
-        #
-        #
-        #     else:
-        #         self.login_toast.set_title(str(e.reason))
-        #         self.login_toast_overlay.add_toast(self.login_toast)
-        #     print(Exception)
-        #     print(e)
-        #     traceback.print_exc()
-        # except Exception as e:
-        #     self.login_toast.set_title(str(e))
-        #     self.login_toast_overlay.add_toast(self.login_toast)
-        #     print(Exception)
-        #     print(e)
-        #     traceback.print_exc()
-
-    # def activate_verify_code(self, button):
-    #     self.login_status_label.set_text("")
-    #     code = self.two_fa_entry.get_text()
-    #     self.two_fa_entry.set_text("")
-    #     try:
-    #         vrcz.sign_in_step2(code)
-    #         if vrcz.update():
-    #             self.stage3_box.set_visible(True)
-    #             self.stage2_box.set_visible(False)
-    #             self.stage1_box.set_visible(False)
-    #         else:
-    #             self.stage3_box.set_visible(False)
-    #             self.stage2_box.set_visible(False)
-    #             self.stage1_box.set_visible(True)
-    #     except ValueError as e:
-    #         print(e)
-
     def activate_logout(self, button):
-        self.stage3_box.set_visible(False)
-        self.stage2_box.set_visible(False)
-        self.stage1_box.set_visible(True)
         vrcz.logout()
         # Here you can also reset the UI fields if needed
 
