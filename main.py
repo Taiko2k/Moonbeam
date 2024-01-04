@@ -24,10 +24,12 @@ import threading
 import websocket
 import datetime
 import copy
+import traceback
 
 
 APP_TITLE = "Moonbeam"
 VERSION = "v0.1 indev"
+APP_ID = "com.github.taiko2k.moonbeam"
 USER_AGENT = 'taiko2k-moonbeam'
 REQUEST_DL_HEADER = {
     'User-Agent': USER_AGENT,
@@ -548,23 +550,19 @@ class VRCZ:
             pickle.dump(d, file)
 
     def sign_in_step1(self, username, password):
+        try:
+            self.auth_api.logout()
+        except:
+            pass
         self.api_client.configuration.username = username
         self.api_client.configuration.password = password
         self.last_status = ""
 
-        try:
-            user = self.auth_api.get_current_user()
-            self.logged_in = True
-            self.current_user_name = user.display_name
-        except UnauthorizedException as e:
-            if "2 Factor Authentication" in e.reason:
-                self.last_status = "2FA required. Please provide the code sent to your email."
-                return
-            else:
-                print(f"Error during authentication: {e}")
-                self.error_log.append(f"Error during authentication: {e}")
-                self.last_status = "Authorization error. Check username and password."
-                raise
+
+        user = self.auth_api.get_current_user()
+        self.logged_in = True
+        self.current_user_name = user.display_name
+
 
     def sign_in_step2(self, email_code):
         try:
@@ -599,18 +597,22 @@ class VRCZ:
         self.friend_objects[r.id] = t
 
     def update(self):
-        return
 
         # Try authenticate
         try:
             rl.inhibit()
             user = self.auth_api.get_current_user()
             self.logged_in = True
+
         except Exception as e:
             print("ERROR --1")
             print(str(e))
-            self.logout()
+            job = Job("login-reset")
+            self.posts.append(job)
             return 1
+
+        job = Job("login-done")
+        self.posts.append(job)
 
         self.current_user_name = user.display_name
         self.friend_id_list = user.friends
@@ -701,9 +703,10 @@ class VRCZ:
 
     def logout(self):
         print("Logout")
+        if self.logged_in:
+            self.auth_api.logout()
         self.logged_in = False
         self.delete_cookies()
-        self.__init__()
 
     def worker(self):
         while RUNNING:
@@ -736,6 +739,22 @@ class VRCZ:
                 job = self.jobs.pop(0)
                 print("Doing Job...")
                 print(job.name)
+
+                if job.name == "login":
+                    username, password, code = job.data
+                    try:
+                        if code:
+                            self.sign_in_step2(code)
+                        else:
+                            self.sign_in_step1(username, password)
+                        job = Job("login-done")
+                        self.posts.append(job)
+                    except Exception as e:
+                        traceback.print_exc()
+                        job = Job("login-error")
+                        job.data = e
+                        self.posts.append(job)
+
 
                 if job.name == "event":
                     self.process_event(job.data)
@@ -1057,8 +1076,78 @@ class MainWindow(Adw.ApplicationWindow):
         self.set_title(APP_TITLE)
 
         self.login_toolbarview = Adw.ToolbarView()
+        self.set_style(self.login_toolbarview, "view")
         self.login_header = Adw.HeaderBar()
         self.login_toolbarview.add_top_bar(self.login_header)
+        self.login_clamp = Adw.Clamp()
+        self.login_clamp.set_maximum_size(300)
+        self.login_toolbarview.set_content(self.login_clamp)
+
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        box.set_margin_top(110)
+        self.login_clamp.set_child(box)
+
+        icon = Gtk.Image.new_from_file(f"{APP_ID}.svg")
+        icon.set_pixel_size(100)
+        icon.set_margin_bottom(30)
+        box.append(icon)
+
+        logo_box = Gtk.Box()
+        icon = Gtk.Image.new_from_file("vrclogoblack.svg")
+        icon.set_pixel_size(60)
+        icon.set_margin_bottom(-10)
+
+        #icon.set_margin_bottom(30)
+        logo_box.append(icon)
+        filler = Gtk.Box()
+        logo_box.append(filler)
+        box.append(logo_box)
+
+        self.login_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.set_style(self.login_box, "linked")
+
+        self.username_entry = Gtk.Entry(placeholder_text="Username or Email")
+        self.login_box.append(self.username_entry)
+
+        self.password_entry = Gtk.Entry(placeholder_text="Password", visibility=False)
+        self.login_box.append(self.password_entry)
+
+
+        box.append(self.login_box)
+
+        self.two_fa_entry = Gtk.Entry(placeholder_text="Two Factor Authentication Code")
+        self.two_fa_entry.set_margin_top(10)
+        self.two_fa_entry.set_visible(False)
+
+        box.append(self.two_fa_entry)
+
+        go_box = Gtk.Box()
+        go_box.set_margin_top(10)
+        filler = Gtk.Box()
+        filler.set_hexpand(True)
+        go_box.append(filler)
+        self.login_spinner = Gtk.Spinner()
+        self.login_spinner.set_margin_top(-58)
+        self.login_spinner.set_margin_end(12)
+        go_box.append(self.login_spinner)
+
+        self.login_button = Gtk.Button(label="Login")
+        self.login_button.connect("clicked", self.login_go)
+
+        if os.path.exists(vrcz.cookie_file_path):
+            self.login_spinner.start()
+            self.username_entry.set_sensitive(False)
+            self.password_entry.set_sensitive(False)
+            self.login_button.set_sensitive(False)
+
+        go_box.append(self.login_button)
+
+        box.append(go_box)
+
+
+        box2 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        box2.set_vexpand(True)
+        box.append(box2)
 
 
         self.nav = Adw.NavigationSplitView()
@@ -1073,7 +1162,11 @@ class MainWindow(Adw.ApplicationWindow):
         self.nav.set_sidebar(self.n0)
 
         #self.set_content(self.nav)
-        self.set_content(self.login_toolbarview)
+        self.login_toast_overlay = Adw.ToastOverlay()
+        self.login_toast_overlay.set_child(self.login_toolbarview)
+        self.set_content(self.login_toast_overlay)
+        self.login_toast = Adw.Toast()
+        self.login_toast.set_timeout(5)
 
 
         self.vsw1 = Adw.ViewSwitcher()
@@ -1445,18 +1538,16 @@ class MainWindow(Adw.ApplicationWindow):
         self.stage1_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
 
 
-        self.username_entry = Gtk.Entry(placeholder_text="Username")
-        self.username_entry.set_margin_bottom(5)
-        self.password_entry = Gtk.Entry(placeholder_text="Password", visibility=False)
-        self.password_entry.set_margin_bottom(10)
+        #self.username_entry = Gtk.Entry(placeholder_text="Username")
 
-        self.stage1_box.append(self.username_entry)
+
+        #self.stage1_box.append(self.username_entry)
         self.stage1_box.append(self.password_entry)
 
 
         self.request_code_button = Gtk.Button(label="Request Code")
         self.request_code_button.set_margin_bottom(30)
-        self.request_code_button.connect("clicked", self.activate_get_code)
+        self.request_code_button.connect("clicked", self.login_go)
         self.stage1_box.append(self.request_code_button)
 
         self.login_status_label = Gtk.Label(label="")
@@ -1469,14 +1560,10 @@ class MainWindow(Adw.ApplicationWindow):
         self.stage2_box.set_visible(False)
 
 
-
-        self.two_fa_entry = Gtk.Entry(placeholder_text="2FA Code")
-        self.two_fa_entry.set_margin_bottom(10)
-
         self.stage2_box.append(self.two_fa_entry)
 
-        self.login_button = Gtk.Button(label="Verify Code")
-        self.login_button.connect("clicked", self.activate_verify_code)
+        # self.login_button = Gtk.Button(label="Verify Code")
+        # self.login_button.connect("clicked", self.activate_verify_code)
         self.stage2_box.append(self.login_button)
         self.login_button.set_margin_bottom(60)
         self.login_box.append(self.stage2_box)
@@ -1490,9 +1577,9 @@ class MainWindow(Adw.ApplicationWindow):
         self.stage3_box.append(self.logout_button)
         self.login_box.append(self.stage3_box)
 
-        if os.path.isfile(vrcz.cookie_file_path):
-            self.stage1_box.set_visible(False)
-            self.stage3_box.set_visible(True)
+        # if os.path.isfile(vrcz.cookie_file_path):
+        #     self.stage1_box.set_visible(False)
+        #     self.stage3_box.set_visible(True)
 
 
         # self.test_button = Gtk.Button(label="_test")
@@ -1528,7 +1615,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.selected_user_info = None
         if vrcz.user_object:
             self.set_profie_view(vrcz.user_object.id)
-        GLib.timeout_add(900, self.heartbeat)
+        GLib.timeout_add(20, self.heartbeat)
 
 
     def set_button_as_label(self, button):  # remove me
@@ -1786,11 +1873,48 @@ class MainWindow(Adw.ApplicationWindow):
             #print("post")
             #print(post.name)
 
+            if post.name == "login-done":
+                self.login_reset()
+                self.main_view()
+                self.login_spinner.stop()
+            if post.name == "login-reset":
+                self.login_reset()
+                self.login_spinner.stop()
+            if post.name == "login-error":
+                e = post.data
+                print(str(e))
+                reason = False
+                try:
+                    print(e.reason)
+                    reason = True
+                except:
+                    pass
+
+                if reason:
+                    if "Invalid Username" in str(e.reason):
+                        self.login_toast.set_title("Invalid username, email or password")
+                        self.login_toast_overlay.add_toast(self.login_toast)
+                        self.login_reset()
+                    if "2 Factor Authentication" in str(e.reason):
+                        self.login_toast.set_title("Please enter you 2FA code")
+                        self.login_toast_overlay.add_toast(self.login_toast)
+                        self.two_fa_entry.set_visable(True)
+                        self.two_fa_entry.set_sensitive(True)
+                        self.login_box.set_visable(False)
+                        self.login_button.set_sensitive(True)
+                    else:
+                        self.login_toast.set_title(str(e.reason))
+                        self.login_toast_overlay.add_toast(self.login_toast)
+                        self.login_reset()
+                else:
+                    self.login_toast.set_title(str(e))
+                    self.login_toast_overlay.add_toast(self.login_toast)
+                    self.login_reset()
+                self.login_spinner.stop()
+
             if post.name == "spinner-start":
-                print("STARTTTTTTTTTTTTTTTTTT")
                 self.spinner.start()
             if post.name == "spinner-stop":
-                print("STOPPPPPPPPPPPPP")
                 self.spinner.stop()
             if post.name == "check-user-info-banner":
                 if self.selected_user_info and self.selected_user_info == post.data:
@@ -1959,7 +2083,7 @@ class MainWindow(Adw.ApplicationWindow):
             print("UPDATE LIST")
             self.update_friend_list()
 
-        GLib.timeout_add(1000, self.heartbeat)
+        GLib.timeout_add(500, self.heartbeat)
 
     def test2(self, button):
         #self.update_friend_list()
@@ -2045,36 +2169,85 @@ class MainWindow(Adw.ApplicationWindow):
     def activate_test(self, button):
         vrcz.update()
 
-    def activate_get_code(self, button):
+    def login_view(self):
+        self.set_content(self.login_toast_overlay)
+    def main_view(self):
+        self.set_content(self.nav)
+    def login_reset(self):
+        self.username_entry.set_sensitive(True)
+        self.password_entry.set_sensitive(True)
+        self.login_button.set_sensitive(True)
+        self.login_box.set_visible(True)
+        self.two_fa_entry.set_visible(False)
+    def login_go(self, button):
         username = self.username_entry.get_text()
         password = self.password_entry.get_text()
-        self.login_status_label.set_text("")
-
-        try:
-            vrcz.sign_in_step1(username, password)
-            self.login_status_label.set_text(vrcz.last_status)
-            self.stage3_box.set_visible(False)
-            self.stage2_box.set_visible(True)
-            self.stage1_box.set_visible(False)
-        except Exception as e:
-            print(e)
-            self.login_status_label.set_text(vrcz.last_status)
-
-    def activate_verify_code(self, button):
-        self.login_status_label.set_text("")
         code = self.two_fa_entry.get_text()
-        try:
-            vrcz.sign_in_step2(code)
-            if vrcz.update():
-                self.stage3_box.set_visible(True)
-                self.stage2_box.set_visible(False)
-                self.stage1_box.set_visible(False)
-            else:
-                self.stage3_box.set_visible(False)
-                self.stage2_box.set_visible(False)
-                self.stage1_box.set_visible(True)
-        except ValueError as e:
-            print(e)
+
+        self.username_entry.set_sensitive(False)
+        self.password_entry.set_sensitive(False)
+        self.login_button.set_sensitive(False)
+
+        self.login_spinner.start()
+        job = Job("login")
+        job.data = (username, password, code)
+        vrcz.jobs.append(job)
+
+        return
+
+        # try:
+        #     code = self.two_fa_entry.get_text()
+        #     if code:
+        #         self.two_fa_entry.set_text("")
+        #         vrcz.sign_in_step2(code)
+        #         return
+        #     #print(1/0)
+        #     vrcz.sign_in_step1(username, password)
+        #     # self.login_status_label.set_text(vrcz.last_status)
+        #     # self.stage3_box.set_visible(False)
+        #     # self.stage2_box.set_visible(True)
+        #     # self.stage1_box.set_visible(False)
+        # except UnauthorizedException as e:
+        #     if "Invalid Username" in e.reason:
+        #         self.login_toast.set_title("Invalid username, email or password")
+        #         self.login_toast_overlay.add_toast(self.login_toast)
+        #     if "2 Factor Authentication" in e.reason:
+        #         self.login_toast.set_title("Please enter you 2FA code")
+        #         self.login_toast_overlay.add_toast(self.login_toast)
+        #         self.two_fa_entry.set_visable(True)
+        #         self.two_fa_entry.set_sensitive(True)
+        #         self.login_box.set_visable(False)
+        #
+        #
+        #     else:
+        #         self.login_toast.set_title(str(e.reason))
+        #         self.login_toast_overlay.add_toast(self.login_toast)
+        #     print(Exception)
+        #     print(e)
+        #     traceback.print_exc()
+        # except Exception as e:
+        #     self.login_toast.set_title(str(e))
+        #     self.login_toast_overlay.add_toast(self.login_toast)
+        #     print(Exception)
+        #     print(e)
+        #     traceback.print_exc()
+
+    # def activate_verify_code(self, button):
+    #     self.login_status_label.set_text("")
+    #     code = self.two_fa_entry.get_text()
+    #     self.two_fa_entry.set_text("")
+    #     try:
+    #         vrcz.sign_in_step2(code)
+    #         if vrcz.update():
+    #             self.stage3_box.set_visible(True)
+    #             self.stage2_box.set_visible(False)
+    #             self.stage1_box.set_visible(False)
+    #         else:
+    #             self.stage3_box.set_visible(False)
+    #             self.stage2_box.set_visible(False)
+    #             self.stage1_box.set_visible(True)
+    #     except ValueError as e:
+    #         print(e)
 
     def activate_logout(self, button):
         self.stage3_box.set_visible(False)
@@ -2095,7 +2268,7 @@ class MOONBEAM(Adw.Application):
         self.win.present()
 
 
-app = MOONBEAM(application_id="com.github.taiko2k.moonbeam")
+app = MOONBEAM(application_id=APP_ID)
 app.run(sys.argv)
 
 # if vrcz.user_object:
@@ -2108,4 +2281,4 @@ if vrcz.online_friend_db_update_timer:
     vrcz.online_friend_db_update_timer.set()
 vrcz.save_app_data()
 RUNNING = False
-time.sleep(1)
+
