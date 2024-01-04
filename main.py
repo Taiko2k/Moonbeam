@@ -597,9 +597,9 @@ class VRCZ:
         self.friend_objects[r.id] = t
 
     def update(self):
-        job = Job("login-done")
-        self.posts.append(job)
-        return
+        # job = Job("login-done")
+        # self.posts.append(job)
+        # return
 
         # Try authenticate
         try:
