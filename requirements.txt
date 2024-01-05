@@ -1,1 +1,3 @@
+requets
 vrchatapi
+websocket-client

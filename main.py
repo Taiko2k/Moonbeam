@@ -253,7 +253,7 @@ class FriendRow(GObject.Object):
 class Friend():
     def __init__(self, **kwargs):
         for item in COPY_FRIEND_PROPERTIES:
-            setattr(self, item, None)
+            setattr(self, item, "")
         for key, value in kwargs.items():
             setattr(self, key, value)
 
@@ -1660,7 +1660,10 @@ class MainWindow(Adw.ApplicationWindow):
         friend = vrcz.friend_objects.get(id)
         if friend is None and id == vrcz.user_object.id:
             friend = vrcz.user_object
+
         if row and friend:
+            if not friend.location:
+                friend.location = "unknown"
             # if friend.location == "offline":
             #     return
             # print("LOAD ROW --------")
@@ -1832,26 +1835,23 @@ class MainWindow(Adw.ApplicationWindow):
                 except:
                     pass
 
-                if reason:
-                    if "Invalid Username" in str(e.reason):
-                        self.login_toast.set_title("Invalid username, email or password")
-                        self.login_toast_overlay.add_toast(self.login_toast)
-                        self.login_reset()
-                    if "2 Factor Authentication" in str(e.reason):
-                        self.login_toast.set_title("Please enter you 2FA code")
-                        self.login_toast_overlay.add_toast(self.login_toast)
-                        self.two_fa_entry.set_visable(True)
-                        self.two_fa_entry.set_sensitive(True)
-                        self.login_box.set_visable(False)
-                        self.login_button.set_sensitive(True)
-                    else:
-                        self.login_toast.set_title(str(e.reason))
-                        self.login_toast_overlay.add_toast(self.login_toast)
-                        self.login_reset()
+
+                if "Invalid Username" in str(e):
+                    self.login_toast.set_title("Invalid username, email or password")
+                    self.login_toast_overlay.add_toast(self.login_toast)
+                    self.login_reset()
+                elif "2 Factor Authentication" in str(e):
+                    self.login_toast.set_title("Please enter you 2FA code")
+                    self.login_toast_overlay.add_toast(self.login_toast)
+                    self.two_fa_entry.set_visible(True)
+                    self.two_fa_entry.set_sensitive(True)
+                    self.login_box.set_visible(False)
+                    self.login_button.set_sensitive(True)
                 else:
                     self.login_toast.set_title(str(e))
                     self.login_toast_overlay.add_toast(self.login_toast)
                     self.login_reset()
+
                 self.login_spinner.stop()
 
             if post.name == "spinner-start":
