@@ -1156,6 +1156,18 @@ class MainWindow(Adw.ApplicationWindow):
         box2.set_vexpand(True)
         box.append(box2)
 
+        label = Gtk.Label(label="Created by Taiko2k.")
+        label.set_justify(Gtk.Justification.CENTER)
+        label.set_margin_bottom(3)
+        self.set_style(label, "dim-label")
+        box.append(label)
+
+        label = Gtk.Label(label="Not affiliated with VRChat. Use at your own risk.")
+        label.set_justify(Gtk.Justification.CENTER)
+        label.set_margin_bottom(20)
+        self.set_style(label, "dim-label")
+        box.append(label)
+
 
         self.nav = Adw.NavigationSplitView()
         self.nav.set_max_sidebar_width(260)
