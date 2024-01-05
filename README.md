@@ -3,7 +3,7 @@
 <img src="com.github.taiko2k.moonbeam.svg" alt="Alt text" width="80" height="80"//>
  
 ## Moonbeam VRC
-A VRChat friend manager for Linux. 
+A VRChat companion app for Linux. 
 </div>
 
 Intended to be an alternative to [VRCX](https://github.com/vrcx-team/VRCX), but maybe narrower in scope.
