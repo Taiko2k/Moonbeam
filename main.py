@@ -353,6 +353,7 @@ class VRCZ:
 
         self.online_friend_db_update_timer = None
         self.offline_friend_db_update_timer = None
+        self.ws = None
 
 
     def instance_from_location(self, location):
@@ -462,14 +463,14 @@ class VRCZ:
         url = f"wss://pipeline.vrchat.cloud/?authToken={auth_token}"
 
         # Connect to the WebSocket with the error-handling callbacks
-        ws = websocket.WebSocketApp(
+        self.ws = websocket.WebSocketApp(
             url,
             on_message=self.on_message,
             on_error=self.on_error,
             on_close=self.on_close,
             header=REQUEST_DL_HEADER
         )
-        ws.run_forever()
+        self.ws.run_forever()
         print("Leave websocket thread")
 
     def delete_cookies(self):
@@ -597,9 +598,11 @@ class VRCZ:
         self.friend_objects[r.id] = t
 
     def update(self):
-        # job = Job("login-done")
-        # self.posts.append(job)
-        # return
+        if "-n" in sys.argv:
+            print("skip update")
+            job = Job("login-done")
+            self.posts.append(job)
+            return
 
         # Try authenticate
         try:
@@ -689,7 +692,6 @@ class VRCZ:
         if ff:
             for fav in ff:
                 self.favorite_friends[fav.favorite_id] = fav.id
-
 
 
         print(f"Logged in as: {self.current_user_name}")
@@ -1155,6 +1157,26 @@ class MainWindow(Adw.ApplicationWindow):
         self.nav = Adw.NavigationSplitView()
         self.nav.set_max_sidebar_width(260)
         self.header = Adw.HeaderBar()
+
+        action = Gio.SimpleAction.new("logout", None)
+        action.connect("activate", self.activate_logout)
+        self.add_action(action)
+
+        menu = Gio.Menu.new()
+
+        item = Gio.MenuItem.new("Logout", "win.logout")
+        menu.append_item(item)
+
+        self.menu = Gtk.MenuButton()
+        self.menu.set_icon_name("open-menu-symbolic")
+        self.popover = Gtk.PopoverMenu.new_from_model(menu)
+        self.menu.set_popover(self.popover)
+
+        self.header.pack_end(self.menu)
+
+
+
+
         self.n1 = Adw.NavigationPage()
         self.n0 = Adw.NavigationPage()
         self.t1 = Adw.ToolbarView()
@@ -1508,36 +1530,15 @@ class MainWindow(Adw.ApplicationWindow):
         self.test_button.connect("clicked", self.test3)
         self.dev_box.append(self.test_button)
 
-        # self.test_button = Gtk.Button(label="Load Friend List")
-        # self.test_button.connect("clicked", self.test2)
-        # self.dev_box.append(self.test_button)
-
-        # self.gps_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        # self.gps_label = Gtk.Label(label="GPS")
-        # self.notebook.append_page(self.gps_box, self.gps_label)
-        #
-        # self.user_info_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        # self.user_info_label = Gtk.Label(label="User Info")
-        # self.notebook.append_page(self.user_info_box, self.user_info_label)
-
-        #self.outer_box.append(Gtk.Separator())
-
         # Login box
         self.login_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
 
         self.c3 = Adw.Clamp()
         self.c3.set_child(self.login_box)
 
-        #self.login_box.set_visible(False)
-
         self.update_friend_list()
 
 
-        # self.user_window = UserInfoWindow()
-        # self.user_window.set_transient_for(self)
-        # self.user_window.set_modal(True)
-        # self.user_window.set_destroy_with_parent(True)
-        # self.user_window.show()
         self.hand_cursor = Gdk.Cursor.new_from_name("pointer")
         self.css_provider = Gtk.CssProvider()
         self.css_provider.load_from_string('''
@@ -1571,6 +1572,8 @@ class MainWindow(Adw.ApplicationWindow):
     def set_profie_view(self, id):
 
         print("Set profile view")
+        if not vrcz.user_object:
+            return
         if id == vrcz.user_object.id:
             p = vrcz.user_object
         elif id in vrcz.friend_objects:
@@ -1693,54 +1696,7 @@ class MainWindow(Adw.ApplicationWindow):
             if world_id:
                 if world_id in vrcz.worlds:
                     world = vrcz.worlds[world_id]
-
-                    #row.location = f"<small>{world.name}</small>"
                     location = f"<span foreground=\"#efb5f5\"><b><small>{world.name}</small></b></span>"
-
-                    # hidden = "~hidden" in friend.location
-
-                    # print(f"hidden: {~hidden == True}")
-
-                    # # Try get instance count from public info
-                    # if not hidden:
-                    #
-                    #     if world.last_fetched and world.last_fetched.get() < WORLD_CACHE_DURATION:
-                    #         pass
-                    #     else:
-                    #         print("request world reload")
-                    #         vrcz.worlds_to_load.append(world_id)
-                    #
-                    #     print("Got world")
-                    #     print(f"world name: {world.name}")
-                    #     print("Instances: V")
-                    #     print(world.instances)
-                    #     capacity = world.capacity
-                    #
-                    #     if world.instances:
-                    #         player_instance = vrcz.parse_world_instance(friend.location)
-                    #         if player_instance:
-                    #             print(world.instances)
-                    #             for instance in world.instances:
-                    #                 if instance[0].split("~")[0] == player_instance:
-                    #                     count = str(instance[1])
-                    #                     break
-                    #             else:
-                    #                 print("no match")
-                    #         else:
-                    #             print("no parse")
-                    #     else:
-                    #         print("no instances")
-                    #
-                    #     if not count:
-                    #         #print("get from instance...")
-                    #         instance = vrcz.instance_from_location(friend.location)
-                    #         if instance and instance.n_users:
-                    #             # print("got count from instance")
-                    #             # print(dir(instance))
-                    #             count = str(instance.n_users)
-                    #
-                    #     print(f"count: {count}")
-
                 else:
                     if world_id not in vrcz.worlds_to_load:
                         vrcz.worlds_to_load.append(world_id)
@@ -2135,10 +2091,14 @@ class MainWindow(Adw.ApplicationWindow):
         job.data = (username, password, code)
         vrcz.jobs.append(job)
 
-    def activate_logout(self, button):
+    def activate_logout(self, a, b):
         vrcz.logout()
-        # Here you can also reset the UI fields if needed
-
+        self.login_reset()
+        self.login_view()
+        vrcz.initial_update = False
+        if vrcz.ws:
+            vrcz.ws.close()
+            vrcz.ws = None
 
 class MOONBEAM(Adw.Application):
     def __init__(self, **kwargs):
@@ -2152,7 +2112,7 @@ class MOONBEAM(Adw.Application):
 
 
 app = MOONBEAM(application_id=APP_ID)
-app.run(sys.argv)
+app.run()
 
 # if vrcz.user_object:
 #     vrcz.user_object.location = "offline"
