@@ -1114,7 +1114,8 @@ class MainWindow(Adw.ApplicationWindow):
         self.username_entry = Gtk.Entry(placeholder_text="Username or Email")
         self.login_box.append(self.username_entry)
 
-        self.password_entry = Gtk.Entry(placeholder_text="Password", visibility=False)
+        self.password_entry = Gtk.PasswordEntry(placeholder_text="Password")
+        self.password_entry.set_show_peek_icon(True)
         self.login_box.append(self.password_entry)
 
 
@@ -1137,6 +1138,8 @@ class MainWindow(Adw.ApplicationWindow):
 
         self.login_button = Gtk.Button(label="Login")
         self.login_button.connect("clicked", self.login_go)
+        self.password_entry.connect("activate", self.login_go)
+        # self.username_entry.connect("activate", self.login_go)
 
         if os.path.exists(vrcz.cookie_file_path):
             self.login_spinner.start()
@@ -1173,8 +1176,6 @@ class MainWindow(Adw.ApplicationWindow):
         self.menu.set_popover(self.popover)
 
         self.header.pack_end(self.menu)
-
-
 
 
         self.n1 = Adw.NavigationPage()
@@ -1513,25 +1514,9 @@ class MainWindow(Adw.ApplicationWindow):
         self.event_scroll.set_child(self.event_box)
 
 
-
-
         # ----------------
         self.outer_box.append(Gtk.Separator())
 
-        self.dev_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        self.dev_box.set_margin_top(12)
-        self.c2 = Adw.Clamp()
-        self.c2.set_child(self.dev_box)
-        self.vst1.add_titled_with_icon(self.c2, "dev", "Dev Menu", "pan-down-symbolic")
-        self.dev_label = Gtk.Label(label="Dev Menu")
-        #self.notebook.append_page(self.dev_box, self.dev_label)
-
-        self.test_button = Gtk.Button(label="Connect and Update")
-        self.test_button.connect("clicked", self.test3)
-        self.dev_box.append(self.test_button)
-
-        # Login box
-        self.login_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
 
         self.c3 = Adw.Clamp()
         self.c3.set_child(self.login_box)
@@ -2080,6 +2065,10 @@ class MainWindow(Adw.ApplicationWindow):
     def login_go(self, button):
         username = self.username_entry.get_text()
         password = self.password_entry.get_text()
+        if not username or not password:
+            self.login_toast.set_title("Missing username or password")
+            self.login_toast_overlay.add_toast(self.login_toast)
+            return
         code = self.two_fa_entry.get_text()
 
         self.username_entry.set_sensitive(False)
