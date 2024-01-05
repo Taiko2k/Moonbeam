@@ -1139,7 +1139,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.login_button = Gtk.Button(label="Login")
         self.login_button.connect("clicked", self.login_go)
         self.password_entry.connect("activate", self.login_go)
-        # self.username_entry.connect("activate", self.login_go)
+        self.username_entry.connect("activate", lambda x: self.password_entry.grab_focus())
 
         if os.path.exists(vrcz.cookie_file_path):
             self.login_spinner.start()
