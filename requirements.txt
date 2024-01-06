@@ -1,3 +1,4 @@
 requets
 vrchatapi
 websocket-client
+unidecode

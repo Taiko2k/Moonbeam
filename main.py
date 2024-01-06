@@ -25,6 +25,7 @@ import websocket
 import datetime
 import copy
 import traceback
+from unidecode import unidecode
 
 
 APP_TITLE = "Moonbeam"
@@ -1426,6 +1427,17 @@ class MainWindow(Adw.ApplicationWindow):
         self.friend_ls = Gio.ListStore(item_type=FriendRow)
         self.friend_ls_dict = {}
 
+        # friend search
+        self.friend_search_entry = Gtk.SearchEntry()
+        self.friend_search_entry.connect("search-changed", self.friend_search)
+        self.friend_search_bar = Gtk.SearchBar()
+        self.friend_search_bar.connect_entry(self.friend_search_entry)
+        self.friend_list_box.append(self.friend_search_bar)
+        self.friend_search_bar.set_child(self.friend_search_entry)
+        self.friend_search_bar.set_search_mode(True)
+        self.set_style(self.friend_search_bar, "view")
+        self.set_style(self.friend_search_entry, "view")
+
         self.ss = Gtk.SingleSelection()
         self.ss.set_model(self.friend_ls)
         self.friend_list_view.set_model(self.ss)
@@ -1433,7 +1445,9 @@ class MainWindow(Adw.ApplicationWindow):
         factory = Gtk.SignalListItemFactory()
 
         self.ss.connect("selection-changed", self.on_selected_friend_changed)
+
         self.friend_list_view.connect("activate", self.on_selected_friend_click)
+
         def f_setup(fact, item):
 
             holder = Gtk.Box()
@@ -1572,6 +1586,13 @@ class MainWindow(Adw.ApplicationWindow):
             self.set_profie_view(vrcz.user_object.id)
         GLib.timeout_add(20, self.heartbeat)
 
+    def friend_search(self, a):
+        if a.get_text():
+            self.friend_list_view.set_single_click_activate(True)
+        else:
+            self.friend_list_view.set_single_click_activate(False)
+        job = Job("update-friend-list")
+        vrcz.posts.append(job)
     def show_about(self, a, b):
         dialog = Adw.AboutWindow(transient_for=self)
         dialog.set_application_name(APP_TITLE)
@@ -1603,8 +1624,7 @@ class MainWindow(Adw.ApplicationWindow):
     def set_profie_view(self, id):
 
         print("Set profile view")
-        if not vrcz.user_object:
-            return
+
         if id == vrcz.user_object.id:
             p = vrcz.user_object
         elif id in vrcz.friend_objects:
@@ -1682,6 +1702,8 @@ class MainWindow(Adw.ApplicationWindow):
             self.set_profie_view(selected_item.id)
         self.vst1.set_visible_child_name("info")
     def on_selected_friend_changed(self, selection, position, n_items):
+        if self.friend_search_entry.get_text():
+            return
         selected_item = selection.get_selected_item()
         if selected_item is not None:
             self.set_profie_view(selected_item.id)
@@ -2036,7 +2058,13 @@ class MainWindow(Adw.ApplicationWindow):
 
     def update_friend_list(self):
 
-        if vrcz.user_object and vrcz.user_object.id not in self.friend_data:
+        search = unidecode(self.friend_search_entry.get_text()).lower()
+
+        if search:
+            self.friend_data.clear()
+            self.friend_ls.remove_all()
+
+        if vrcz.user_object and not search and vrcz.user_object.id not in self.friend_data:
             fd = FriendRow()
             fd.is_user = True
             fd.id = vrcz.user_object.id
@@ -2045,8 +2073,21 @@ class MainWindow(Adw.ApplicationWindow):
             self.friend_ls.append(fd)
 
         for k, v in vrcz.friend_objects.items():
+
+            if search:
+                if search not in unidecode(v.display_name).lower():
+                    # if k in self.friend_data:
+                    #     fd = self.friend_data[k]
+                    #     del self.friend_data[k]
+                    #     r, n = self.friend_ls.find(fd)
+                    #     print((r, n))
+                    #     if r:
+                    #         self.friend_ls.remove(n)
+                    continue
+
             if k not in self.friend_data:
                 fd = FriendRow()
+
             # else:
             #     fd = self.friend_data[k]
                 fd.id = k
