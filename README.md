@@ -8,11 +8,17 @@ A VRChat companion app for Linux.
 
 Intended to be an alternative to [VRCX](https://github.com/vrcx-team/VRCX), but maybe narrower in scope.
 
-Current features:
+Implemented features:
 
  - See which of your friends are online
- - View friend information
+ - View friend bio information
  - Location tracker
  - Youtube URL extraction
 
-⚠️ This app is currently alpha quality and not ready for general use. Leave a star and come back later!
+⚠️ Warnings:
+
+ 1. This app is early in development, it may be buggy or even not work at all.
+ 2. This app tries to be nice to the VRChat API, but there's no guarantee.
+ 3. Account switching is not currently supported. Behavior when logging in with various different accounts is undefined.
+
+
