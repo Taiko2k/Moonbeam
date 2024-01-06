@@ -1177,18 +1177,33 @@ class MainWindow(Adw.ApplicationWindow):
         action.connect("activate", self.activate_logout)
         self.add_action(action)
 
+        action = Gio.SimpleAction.new("about", None)
+        action.connect("activate", self.show_about)
+        self.add_action(action)
+
         menu = Gio.Menu.new()
 
         item = Gio.MenuItem.new("Logout", "win.logout")
+        menu.append_item(item)
+
+        item = Gio.MenuItem.new(f"About {APP_TITLE}", "win.about")
         menu.append_item(item)
 
         self.menu = Gtk.MenuButton()
         self.menu.set_icon_name("open-menu-symbolic")
         self.popover = Gtk.PopoverMenu.new_from_model(menu)
         self.menu.set_popover(self.popover)
-
         self.header.pack_end(self.menu)
 
+        l_menu = Gio.Menu.new()
+        l_menu.append_item(item)
+
+
+        self.l_menu = Gtk.MenuButton()
+        self.l_menu.set_icon_name("open-menu-symbolic")
+        self.l_popover = Gtk.PopoverMenu.new_from_model(l_menu)
+        self.l_menu.set_popover(self.l_popover)
+        self.login_header.pack_end(self.l_menu)
 
         self.n1 = Adw.NavigationPage()
         self.n0 = Adw.NavigationPage()
@@ -1557,7 +1572,26 @@ class MainWindow(Adw.ApplicationWindow):
             self.set_profie_view(vrcz.user_object.id)
         GLib.timeout_add(20, self.heartbeat)
 
+    def show_about(self, a, b):
+        dialog = Adw.AboutWindow(transient_for=self)
+        dialog.set_application_name(APP_TITLE)
+        dialog.set_version(VERSION)
+        dialog.set_developer_name("Taiko2k")
+        dialog.set_license_type(Gtk.License(Gtk.License.GPL_3_0))
+        #dialog.set_comments("test")
+        dialog.set_website("https://github.com/Tailko2k/Moonbeam")
+        #dialog.set_issue_url("https://github.com/Tailko2k/Moonbeam/issues")
+        #dialog.add_credit_section("Contributors", ["Name1 url"])
+        #dialog.set_translator_credits("Name1 url")
+        dialog.set_copyright("© 2024 Taiko2k captain.gxj@gmail.com\n\nThis application is not affiliated with VRChat."
+                             " Use at your own risk!"
+                             "\n\nVRChat and the VRChat logo are trademarks of VRChat Inc.")
 
+        #dialog.set_developers(["Developer"])
+        dialog.set_application_icon(
+            "com.github.taiko2k.moonbeam")  # icon must be uploaded in ~/.local/share/icons or /usr/share/icons
+
+        dialog.set_visible(True)
     def set_button_as_label(self, button):  # remove me
         style_context = button.get_style_context()
         style_context.add_provider(self.css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
