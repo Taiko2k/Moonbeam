@@ -38,12 +38,16 @@ REQUEST_DL_HEADER = {
 
 DATA_FILE = 'user_data.pkl'
 USER_ICON_CACHE = "cache/avatar1"
+WORLD_ICON_CACHE = "cache/world1"
 
 WORLD_CACHE_DURATION = 60 * 5
 INSTANCE_CACHE_DURATION = 60 * 3
 
 if not os.path.exists(USER_ICON_CACHE):
     os.makedirs(USER_ICON_CACHE)
+
+if not os.path.exists(WORLD_ICON_CACHE):
+    os.makedirs(WORLD_ICON_CACHE)
 
 
 def extract_filename(url):
@@ -862,6 +866,20 @@ class VRCZ:
                             with open(key_path, 'wb') as f:
                                 f.write(response.content)
 
+                if job.name == "download-check-world-banner":
+                    URL = job.data
+                    print("Download world banner")
+                    if URL:
+                        key = extract_filename(URL)
+                        key_path = os.path.join(WORLD_ICON_CACHE, key)
+                        if key not in os.listdir(WORLD_ICON_CACHE):
+                            response = requests.get(URL, headers=REQUEST_DL_HEADER)
+                            with open(key_path, 'wb') as f:
+                                f.write(response.content)
+                    job = Job("check-world-banner")
+                    job.data = URL
+                    self.posts.append(job)
+
                 if job.name == "download-check-user-banner":
                     v = job.data
                     URL = v.get_banner_url()
@@ -941,11 +959,15 @@ class VRCZ:
 
             world.load_from_api_model(w)
 
+            job = Job("download-check-world-banner", world.thumbnail_image_url)
+            self.jobs.append(job)
         except Exception as e:
             #raise
             print(str(e))
 
         world.last_fetched.set()
+
+
         #print(w)
 
         self.worlds[id] = world
