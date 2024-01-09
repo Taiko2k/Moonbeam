@@ -103,6 +103,7 @@ language_emoji_dict = {
     "language_kvk": "🇰🇷🤟"  # Korean Sign Language - Combining Korean flag and the sign
 }
 
+failed_files = []
 
 class Timer:
     def __init__(self, force=None):
@@ -595,10 +596,11 @@ class VRCZ:
             if hasattr(r, key):
                 setattr(t, key, getattr(r, key))
 
-        job = Job("download-check-user-icon", t)
-        self.jobs.append(job)
-        job = Job("download-check-user-avatar-thumbnail", t)
-        self.jobs.append(job)
+        if t not in failed_files:
+            job = Job("download-check-user-icon", t)
+            self.jobs.append(job)
+            job = Job("download-check-user-avatar-thumbnail", t)
+            self.jobs.append(job)
 
         self.friend_objects[r.id] = t
 
@@ -687,10 +689,11 @@ class VRCZ:
         else:
             print("Skip update offline friends")
 
-        job = Job("download-check-user-icon", self.user_object)
-        self.jobs.append(job)
-        job = Job("download-check-user-avatar-thumbnail", self.user_object)
-        self.jobs.append(job)
+        if self.user_object not in failed_files:
+            job = Job("download-check-user-icon", self.user_object)
+            self.jobs.append(job)
+            job = Job("download-check-user-avatar-thumbnail", self.user_object)
+            self.jobs.append(job)
 
         ff = self.favorites_api.get_favorites(n=100, offset=0, type="friend")
         self.favorite_friends.clear()
@@ -861,10 +864,12 @@ class VRCZ:
                         key_path = os.path.join(USER_ICON_CACHE, key)
                         if key not in os.listdir(USER_ICON_CACHE):
                             print("download icon")
-
-                            response = requests.get(v.user_icon, headers=REQUEST_DL_HEADER)
-                            with open(key_path, 'wb') as f:
-                                f.write(response.content)
+                            try:
+                                response = requests.get(v.user_icon, headers=REQUEST_DL_HEADER)
+                                with open(key_path, 'wb') as f:
+                                    f.write(response.content)
+                            except:
+                                failed_files.append(job.data)
 
                 if job.name == "download-check-world-banner":
                     world = job.data
@@ -874,12 +879,15 @@ class VRCZ:
                         key = extract_filename(URL)
                         key_path = os.path.join(WORLD_ICON_CACHE, key)
                         if key not in os.listdir(WORLD_ICON_CACHE):
-                            response = requests.get(URL, headers=REQUEST_DL_HEADER)
-                            with open(key_path, 'wb') as f:
-                                f.write(response.content)
-                            job = Job("check-world-info-banner")
-                            job.data = world
-                            self.posts.append(job)
+                            try:
+                                response = requests.get(URL, headers=REQUEST_DL_HEADER)
+                                with open(key_path, 'wb') as f:
+                                    f.write(response.content)
+                            except:
+                                failed_files.append(job.data)
+                        job = Job("check-world-info-banner")
+                        job.data = world
+                        self.posts.append(job)
 
                 if job.name == "download-check-user-banner":
                     v = job.data
@@ -888,9 +896,12 @@ class VRCZ:
                         key = extract_filename(URL)
                         key_path = os.path.join(USER_ICON_CACHE, key)
                         if key not in os.listdir(USER_ICON_CACHE):
-                            response = requests.get(URL, headers=REQUEST_DL_HEADER)
-                            with open(key_path, 'wb') as f:
-                                f.write(response.content)
+                            try:
+                                response = requests.get(URL, headers=REQUEST_DL_HEADER)
+                                with open(key_path, 'wb') as f:
+                                    f.write(response.content)
+                            except:
+                                failed_files.append(job.data)
                             job = Job("check-user-info-banner")
                             job.data = v
                             self.posts.append(job)
@@ -909,10 +920,12 @@ class VRCZ:
                         key_path = os.path.join(USER_ICON_CACHE, key)
                         if key not in os.listdir(USER_ICON_CACHE):
                             print("download icon")
-
-                            response = requests.get(v.current_avatar_thumbnail_image_url, headers=REQUEST_DL_HEADER)
-                            with open(key_path, 'wb') as f:
-                                f.write(response.content)
+                            try:
+                                response = requests.get(v.current_avatar_thumbnail_image_url, headers=REQUEST_DL_HEADER)
+                                with open(key_path, 'wb') as f:
+                                    f.write(response.content)
+                            except:
+                                failed_files.append(job.data)
 
             if not self.jobs:
                 time.sleep(0.01)
@@ -960,8 +973,9 @@ class VRCZ:
 
             world.load_from_api_model(w)
 
-            job = Job("download-check-world-banner", world)
-            self.jobs.append(job)
+            if world not in failed_files:
+                job = Job("download-check-world-banner", world)
+                self.jobs.append(job)
         except Exception as e:
             #raise
             print(str(e))
@@ -1713,7 +1727,7 @@ class MainWindow(Adw.ApplicationWindow):
         print(world)
         self.selected_world_info = world
         URL = world.thumbnail_image_url
-        if URL:
+        if URL and world not in failed_files:
             # print("URL")
             # print(URL)
             key = extract_filename(URL)
@@ -1748,7 +1762,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.selected_user_info = p
 
         URL = p.get_banner_url()
-        if URL:
+        if URL and p not in failed_files:
             # print("URL")
             # print(URL)
             key = extract_filename(URL)
