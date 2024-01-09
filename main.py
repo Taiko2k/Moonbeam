@@ -1286,10 +1286,12 @@ class MainWindow(Adw.ApplicationWindow):
 
 
         self.world_box_outer_holder = Gtk.Box()
+
         self.world_box_holder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.world_box_holder.set_visible(False)
         self.world_box_holder.set_size_request(300, -1)
         self.world_box_holder.set_hexpand(True)
-        self.world_box_holder.set_margin_top(10)
+        self.world_box_outer_holder.set_margin_top(10)
         self.set_style(self.world_box_holder, "view")
 
         self.world_box_outer_scroll = Gtk.ScrolledWindow()
@@ -1297,6 +1299,14 @@ class MainWindow(Adw.ApplicationWindow):
         self.world_box_outer_scroll.set_child(self.world_box_outer_holder)
         self.world_box_outer_holder.append(self.world_box_holder)
 
+        self.world_status_page = Adw.StatusPage()
+        self.world_status_page.set_vexpand(True)
+        self.world_status_page.set_hexpand(True)
+        self.world_status_page.set_title("Offline")
+        self.set_style(self.world_status_page, "view")
+
+        self.world_status_page.set_icon_name("help-about-symbolic")
+        self.world_box_outer_holder.append(self.world_status_page)
 
 
 
@@ -1720,10 +1730,26 @@ class MainWindow(Adw.ApplicationWindow):
         style_context = target.get_style_context()
         style_context.add_class(name)
 
+    def set_world_view_off(self, mode="offline"):
+        self.world_box_holder.set_visible(False)
+        self.world_status_page.set_visible(True)
+
+        if mode == "offline":
+            self.world_status_page.set_title("Offline")
+        if mode == "private":
+            self.world_status_page.set_title("Private Location")
+        if mode == "loading":
+            self.world_status_page.set_title("Loading...")
+
+
     def set_world_view(self, world):
         print("set world view")
         if not world:
+            self.set_world_view_off()
             return
+
+        self.world_box_holder.set_visible(True)
+        self.world_status_page.set_visible(False)
         print(world)
         self.selected_world_info = world
         URL = world.thumbnail_image_url
@@ -1818,6 +1844,7 @@ class MainWindow(Adw.ApplicationWindow):
             text = " "
         self.info_note.set_subtitle(text)
 
+        print(p.location)
         world_id = vrcz.parse_world_id(p.location)
 
         if world_id:
@@ -1825,8 +1852,13 @@ class MainWindow(Adw.ApplicationWindow):
                 world = vrcz.worlds[world_id]
                 self.set_world_view(world)
             else:
+                self.set_world_view_off("loading")
                 vrcz.load_world(world_id)
-
+        else:
+            if p.location == "private":
+                self.set_world_view_off("private")
+            else:
+                self.set_world_view_off()
 
     def on_selected_friend_click(self, view, n):
         selected_item = self.ss.get_selected_item()
