@@ -1315,7 +1315,41 @@ class MainWindow(Adw.ApplicationWindow):
         self.world_name.set_title("World Name")
         self.set_style(self.world_name, "property")
         self.world_row1.append(self.world_name)
+
+        self.world_desc = Adw.ActionRow()
+        self.world_desc.set_subtitle("")
+        self.world_desc.set_subtitle_selectable(True)
+        self.world_desc.set_title("Description")
+        self.set_style(self.world_desc, "property")
+        self.world_row1.append(self.world_desc)
+
         self.world_box_holder.append(self.world_row1)
+
+        box = Gtk.Box()
+
+        self.world_row2 = Gtk.ListBox()
+        self.world_row2.set_selection_mode(Gtk.SelectionMode.NONE)
+        box.append(self.world_row2)
+
+        self.world_c_date = Adw.ActionRow()
+        self.world_c_date.set_subtitle("")
+        self.world_c_date.set_subtitle_selectable(True)
+        self.world_c_date.set_title("First Uploaded")
+        self.set_style(self.world_c_date, "property")
+        self.world_row2.append(self.world_c_date)
+
+        self.world_row3 = Gtk.ListBox()
+        self.world_row3.set_selection_mode(Gtk.SelectionMode.NONE)
+        box.append(self.world_row3)
+
+        self.world_author = Adw.ActionRow()
+        self.world_author.set_subtitle("")
+        self.world_author.set_subtitle_selectable(True)
+        self.world_author.set_title("Author")
+        self.set_style(self.world_author, "property")
+        self.world_row3.append(self.world_author)
+
+        self.world_box_holder.append(box)
 
         filler = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         filler.set_vexpand(True)
@@ -1696,6 +1730,9 @@ class MainWindow(Adw.ApplicationWindow):
             self.world_banner.set_filename(None)
 
         self.world_name.set_subtitle(world.name)
+        self.world_desc.set_subtitle(world.description)
+        self.world_c_date.set_subtitle(str(world.created_at.strftime('%Y/%m/%d')))
+        self.world_author.set_subtitle(world.author_name)
     def set_profie_view(self, id):
 
         print("Set profile view")
