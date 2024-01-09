@@ -867,7 +867,8 @@ class VRCZ:
                                 f.write(response.content)
 
                 if job.name == "download-check-world-banner":
-                    URL = job.data
+                    world = job.data
+                    URL = world.thumbnail_image_url
                     print("Download world banner")
                     if URL:
                         key = extract_filename(URL)
@@ -876,9 +877,9 @@ class VRCZ:
                             response = requests.get(URL, headers=REQUEST_DL_HEADER)
                             with open(key_path, 'wb') as f:
                                 f.write(response.content)
-                    job = Job("check-world-banner")
-                    job.data = URL
-                    self.posts.append(job)
+                            job = Job("check-world-info-banner")
+                            job.data = world
+                            self.posts.append(job)
 
                 if job.name == "download-check-user-banner":
                     v = job.data
@@ -890,9 +891,9 @@ class VRCZ:
                             response = requests.get(URL, headers=REQUEST_DL_HEADER)
                             with open(key_path, 'wb') as f:
                                 f.write(response.content)
-                    job = Job("check-user-info-banner")
-                    job.data = v
-                    self.posts.append(job)
+                            job = Job("check-user-info-banner")
+                            job.data = v
+                            self.posts.append(job)
 
 
                 if job.name == "download-check-user-avatar-thumbnail":
@@ -959,7 +960,7 @@ class VRCZ:
 
             world.load_from_api_model(w)
 
-            job = Job("download-check-world-banner", world.thumbnail_image_url)
+            job = Job("download-check-world-banner", world)
             self.jobs.append(job)
         except Exception as e:
             #raise
@@ -1271,22 +1272,54 @@ class MainWindow(Adw.ApplicationWindow):
 
 
         self.world_box_outer_holder = Gtk.Box()
-        self.world_box_holder = Gtk.Box()
+        self.world_box_holder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.world_box_holder.set_size_request(300, -1)
         self.world_box_holder.set_hexpand(True)
         self.world_box_holder.set_margin_top(10)
         self.set_style(self.world_box_holder, "view")
 
         self.world_box_outer_scroll = Gtk.ScrolledWindow()
-        self.world_box_outer_scroll.set_vexpand(True)
+        #self.world_box_outer_scroll.set_vexpand(True)
         self.world_box_outer_scroll.set_child(self.world_box_outer_holder)
         self.world_box_outer_holder.append(self.world_box_holder)
 
 
 
-        label = Gtk.Label()
-        label.set_text("test test test")
-        self.world_box_holder.append(label)
+
+        self.world_banner_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        self.world_banner = Gtk.Picture()
+        self.world_banner.set_can_shrink(True)
+        self.world_banner.set_content_fit(Gtk.ContentFit.CONTAIN)
+        self.world_banner.set_size_request(-1, 170)
+        self.world_banner.set_valign(Gtk.Align.START)
+        self.world_banner.set_margin_top(10)
+
+        self.world_banner_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        filler = Gtk.Box()
+        filler.set_hexpand(True)
+        self.world_banner_box.append(filler)
+        self.world_banner_box.append(self.world_banner)
+        filler = Gtk.Box()
+        filler.set_hexpand(True)
+        self.world_banner_box.append(filler)
+
+
+        self.world_box_holder.append(self.world_banner_box)
+
+        self.world_row1 = Gtk.ListBox()
+        self.world_row1.set_selection_mode(Gtk.SelectionMode.NONE)
+
+        self.world_name = Adw.ActionRow()
+        self.world_name.set_subtitle("ExampleWorld")
+        self.world_name.set_subtitle_selectable(True)
+        self.world_name.set_title("World Name")
+        self.set_style(self.world_name, "property")
+        self.world_row1.append(self.world_name)
+        self.world_box_holder.append(self.world_row1)
+
+        filler = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        filler.set_vexpand(True)
+        self.world_box_outer_holder.append(filler)
 
 
         self.info_box_holder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -1326,13 +1359,9 @@ class MainWindow(Adw.ApplicationWindow):
         self.banner.set_size_request(-1, 170)
         self.banner.set_can_shrink(True)
         self.banner.set_valign(Gtk.Align.START)
-        # self.banner.set_margin_bottom(-90)
-        # self.banner.set_margin_top(-90)
-        #self.banner.set_hexpand(True)
+        self.banner.set_margin_top(10)
         self.banner.set_content_fit(Gtk.ContentFit.CONTAIN)
-        #self.banner.set_margin_top(0)
 
-       # self.row1and2andpic.append(self.banner)
         filler = Gtk.Box()
         filler.set_hexpand(True)
         self.banner_box.append(filler)
@@ -1578,7 +1607,6 @@ class MainWindow(Adw.ApplicationWindow):
 
 
         # ----------------
-        self.outer_box.append(Gtk.Separator())
 
 
         self.c3 = Adw.Clamp()
@@ -1604,6 +1632,7 @@ class MainWindow(Adw.ApplicationWindow):
         ''')
 
         self.selected_user_info = None
+        self.selected_world_info = None
         if vrcz.user_object:
             self.set_profie_view(vrcz.user_object.id)
         GLib.timeout_add(20, self.heartbeat)
@@ -1643,6 +1672,30 @@ class MainWindow(Adw.ApplicationWindow):
         style_context = target.get_style_context()
         style_context.add_class(name)
 
+    def set_world_view(self, world):
+        print("set world view")
+        if not world:
+            return
+        print(world)
+        self.selected_world_info = world
+        URL = world.thumbnail_image_url
+        if URL:
+            # print("URL")
+            # print(URL)
+            key = extract_filename(URL)
+            print(key)
+            key_path = os.path.join(WORLD_ICON_CACHE, key)
+            if os.path.isfile(key_path):
+                self.world_banner.set_filename(key_path)
+            else:
+                self.world_banner.set_resource("image-loading-symbolic")
+                job = Job("download-check-world-banner")
+                job.data = world
+                vrcz.jobs.append(job)
+        else:
+            self.world_banner.set_filename(None)
+
+        self.world_name.set_subtitle(world.name)
     def set_profie_view(self, id):
 
         print("Set profile view")
@@ -1714,8 +1767,14 @@ class MainWindow(Adw.ApplicationWindow):
             text = " "
         self.info_note.set_subtitle(text)
 
-        # world_id = vrcz.parse_world_id(p.location)
-        # vrcz.load_world(world_id)
+        world_id = vrcz.parse_world_id(p.location)
+
+        if world_id:
+            if world_id in vrcz.worlds:
+                world = vrcz.worlds[world_id]
+                self.set_world_view(world)
+            else:
+                vrcz.load_world(world_id)
 
 
     def on_selected_friend_click(self, view, n):
@@ -1889,6 +1948,7 @@ class MainWindow(Adw.ApplicationWindow):
                 self.spinner.start()
             if post.name == "spinner-stop":
                 self.spinner.stop()
+
             if post.name == "check-user-info-banner":
                 if self.selected_user_info and self.selected_user_info == post.data:
                     URL = self.selected_user_info.get_banner_url()
@@ -1898,6 +1958,16 @@ class MainWindow(Adw.ApplicationWindow):
                         self.banner.set_filename(key_path)
                     else:
                         self.banner.set_filename(None)
+            if post.name == "check-world-info-banner":
+                if self.selected_world_info and self.selected_world_info == post.data:
+                    self.set_world_view(self.selected_world_info)
+                    # URL = self.selected_word_info.thumbnail_image_url
+                    # key = extract_filename(URL)
+                    # key_path = os.path.join(WORLD_ICON_CACHE, key)
+                    # if URL and os.path.isfile(key_path):
+                    #     self.world_banner.set_filename(key_path)
+                    # else:
+                    #     self.world_banner.set_filename(None)
             if post.name == "update-friend-list":
                 update_friend_list = True
             if post.name == "update-friend-rows":
