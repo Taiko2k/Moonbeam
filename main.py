@@ -1285,7 +1285,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.info_box_clamp.set_child(self.outer_box)
 
 
-        self.world_box_outer_holder = Gtk.Box()
+        self.world_box_outer_holder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
 
         self.world_box_holder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.world_box_holder.set_visible(False)
@@ -1375,9 +1375,42 @@ class MainWindow(Adw.ApplicationWindow):
 
         self.world_box_holder.append(box)
 
-        filler = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        filler.set_vexpand(True)
-        self.world_box_outer_holder.append(filler)
+        # INSTANCE --------------
+
+        self.instance_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.instance_box.set_hexpand(True)
+        self.instance_box.set_margin_top(8)
+        self.set_style(self.instance_box, "view")
+        self.world_box_outer_holder.append(self.instance_box)
+
+        self.instance_row1 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+
+        self.instancelb1 = Gtk.ListBox()
+        self.instancelb1.set_selection_mode(Gtk.SelectionMode.NONE)
+        self.instance_type = Adw.ActionRow()
+        self.instance_type.set_subtitle("Unknown")
+        self.instance_type.set_subtitle_selectable(True)
+        self.instance_type.set_title("Instance Type")
+        self.set_style(self.instance_type, "property")
+        self.instancelb1.append(self.instance_type)
+        self.instance_row1.append(self.instancelb1)
+
+        self.instancelb2 = Gtk.ListBox()
+        self.instancelb2.set_selection_mode(Gtk.SelectionMode.NONE)
+        self.instance_count = Adw.ActionRow()
+        self.instance_count.set_subtitle("Unknown")
+        self.instance_count.set_subtitle_selectable(True)
+        self.instance_count.set_title("Count")
+        self.set_style(self.instance_count, "property")
+        self.instancelb2.append(self.instance_count)
+        self.instance_row1.append(self.instancelb2)
+
+
+        self.instance_box.append(self.instance_row1)
+
+        #filler = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        #filler.set_vexpand(True)
+        #self.world_box_outer_holder.append(filler)
 
 
         self.info_box_holder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
