@@ -72,6 +72,20 @@ COPY_INSTANCE_PROPERTIES = {
     "world_id"
 }
 
+def location_to_instance_type(location):
+    instance_type = ""
+    if "~groupAccessType(public)" in location:
+        instance_type = "Public"
+    elif "public" in location:
+        instance_type = "Public"
+    elif "hidden" in location:
+        instance_type = "Friends+"
+    elif "friends" in location:
+        instance_type = "Friends"
+    elif ":" in location:
+        instance_type = "Public"
+    return instance_type
+
 language_emoji_dict = {
     "language_eng": "🇬🇧",  # English - UK Flag
     "language_kor": "🇰🇷",  # Korean
@@ -136,7 +150,7 @@ class RateLimiter:
     def __init__(self):
         self.last_call_time = None
         self.interval = 5
-        self.burst = 6
+        self.burst = 3
 
     def inhibit(self):
         self.burst -= 1
@@ -301,12 +315,14 @@ class Event:
 
 
 class Instance:
-    def __init__(self, **kwargs):
+    def __init__(self, instance):
+
         self.last_fetched = Timer()
         for item in COPY_INSTANCE_PROPERTIES:
             setattr(self, item, "")
-        for key, value in kwargs.items():
-            setattr(self, key, value)
+        for item in COPY_INSTANCE_PROPERTIES:
+            setattr(self, item, getattr(instance, item))
+
 
 
 class VRCZ:
@@ -362,26 +378,25 @@ class VRCZ:
         self.ws = None
 
 
-    def instance_from_location(self, location):
-        if not location or not location.lower().startswith("wrld_") or not ":" in location:
-            return None
-
-        if location in self.instance_cache:
-            i = self.instance_cache[location]
-            if i is None:
-                return None
-            if i.last_fetched and i.last_fetched.get() < INSTANCE_CACHE_DURATION:
-                return i
-            else:
-                print("instance expired")
-
-        if location in self.instances_to_load:
-            return None
-        print("request load instance")
-        self.instances_to_load.append(location)
-
-
-        return None
+    # def instance_from_location(self, location):
+    #     if not location or not location.lower().startswith("wrld_") or not ":" in location:
+    #         return None
+    #
+    #     if location in self.instance_cache:
+    #         i = self.instance_cache[location]
+    #         if i is None:
+    #             return None
+    #         if i.last_fetched and i.last_fetched.get() < INSTANCE_CACHE_DURATION:
+    #             return i
+    #         else:
+    #             print("instance expired")
+    #
+    #     if location in self.instances_to_load:
+    #         return None
+    #     print("request load instance")
+    #     self.instances_to_load.append(location)
+    #
+    #     return None
 
     def update_from_log(self):
         if self.log_reader:
@@ -717,7 +732,10 @@ class VRCZ:
     def logout(self):
         print("Logout")
         if self.logged_in:
-            self.auth_api.logout()
+            try:
+                self.auth_api.logout()
+            except:
+                pass
         self.logged_in = False
         self.delete_cookies()
 
@@ -741,11 +759,17 @@ class VRCZ:
                 self.posts.append(job)
 
             if self.instances_to_load:
+                print("Job load instance")
                 location = self.instances_to_load[0]
+                print(location)
+
                 self.load_location(location)
                 del self.instances_to_load[0]
                 job = Job("update-friend-rows")
                 self.posts.append(job)
+                job = Job("update-instance-info", location)
+                self.posts.append(job)
+
 
 
             if self.jobs:
@@ -992,8 +1016,13 @@ class VRCZ:
 
         try:
             print("LOAD LOCATION")
+            if ":" not in location:
+                self.instance_cache[location] = None
+                return
             w_id, i_id = location.split(":")
-            print((w_id, i_id))
+            # if "~" in i_id:
+            #     i_id = i_id.split("~")[0]
+            #print((w_id, i_id))
             rl.inhibit()
             instance = self.instance_api.get_instance(w_id, i_id)
             if not instance:
@@ -1008,7 +1037,7 @@ class VRCZ:
             print(str(e))
             return
 
-        self.instance_cache[location] = Instance(**instance.__dict__)
+        self.instance_cache[location] = Instance(instance)
 
 
 
@@ -1804,7 +1833,10 @@ class MainWindow(Adw.ApplicationWindow):
 
         self.world_name.set_subtitle(world.name)
         self.world_desc.set_subtitle(world.description)
-        self.world_c_date.set_subtitle(str(world.created_at.strftime('%Y/%m/%d')))
+        if type(world.created_at) is str:
+            self.world_c_date.set_subtitle(world.created_at)
+        else:
+            self.world_c_date.set_subtitle(str(world.created_at.strftime('%Y/%m/%d')))
         self.world_author.set_subtitle(world.author_name)
     def set_profie_view(self, id):
 
@@ -1893,6 +1925,36 @@ class MainWindow(Adw.ApplicationWindow):
             else:
                 self.set_world_view_off()
 
+        self.set_instance_view(p)
+
+
+    def set_instance_view(self, player):
+        location = player.location
+        if location == "private":
+            self.instance_type.set_subtitle("Private")
+            self.instance_count.set_subtitle(" ")
+            return
+        if location == "offline" or location == "unknown":
+            self.instance_type.set_subtitle("Offline")
+            self.instance_count.set_subtitle(" ")
+            return
+        self.instance_type.set_subtitle(" ")
+        self.instance_count.set_subtitle(" ")
+
+        instance = vrcz.instance_cache.get(location)
+        print(location)
+        if not instance:
+            if location in vrcz.instance_cache:
+                return
+            if location not in vrcz.instances_to_load:
+                vrcz.instances_to_load.append(location)
+            return
+
+        self.instance_type.set_subtitle(location_to_instance_type(location))
+        self.instance_count.set_subtitle(f"{instance.n_users}/{instance.capacity}")
+        print("aaaaaaaa")
+        print(instance.n_users)
+
     def on_selected_friend_click(self, view, n):
         selected_item = self.ss.get_selected_item()
         if selected_item is not None:
@@ -1952,17 +2014,7 @@ class MainWindow(Adw.ApplicationWindow):
                         vrcz.worlds_to_load.append(world_id)
 
             # Determine type
-            instance_type = ""
-            if "~groupAccessType(public)" in friend.location:
-                instance_type = "Public"
-            elif "public" in friend.location:
-                instance_type = "Public"
-            elif "hidden" in friend.location:
-                instance_type = "Friends+"
-            elif "friends" in friend.location:
-                instance_type = "Friends"
-            elif ":" in friend.location:
-                instance_type = "Public"
+            instance_type = location_to_instance_type(friend.location)
 
             text = ""
             if instance_type:
@@ -2065,6 +2117,9 @@ class MainWindow(Adw.ApplicationWindow):
             if post.name == "spinner-stop":
                 self.spinner.stop()
 
+            if post.name == "update-instance-info":
+                if self.selected_user_info and self.selected_user_info.location == post.data:
+                    self.set_instance_view(self.selected_user_info)
             if post.name == "check-user-info-banner":
                 if self.selected_user_info and self.selected_user_info == post.data:
                     URL = self.selected_user_info.get_banner_url()
@@ -2074,6 +2129,7 @@ class MainWindow(Adw.ApplicationWindow):
                         self.banner.set_filename(key_path)
                     else:
                         self.banner.set_filename(None)
+
             if post.name == "check-world-info-banner":
                 if self.selected_world_info and self.selected_world_info == post.data:
                     self.set_world_view(self.selected_world_info)
