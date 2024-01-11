@@ -348,6 +348,7 @@ class VRCZ:
         self.error_log = []  # in event of any error, append human-readable string explaining error
         self.api_client = vrchatapi.ApiClient()
         self.api_client.user_agent = USER_AGENT
+        self.api_client.configuration.safe_chars_for_path_param += "~()"
         self.auth_api = authentication_api.AuthenticationApi(self.api_client)
         self.world_api = vrchatapi.WorldsApi(self.api_client)
         self.instance_api = vrchatapi.InstancesApi(self.api_client)
@@ -1020,6 +1021,9 @@ class VRCZ:
                 self.instance_cache[location] = None
                 return
             w_id, i_id = location.split(":")
+
+            from urllib.parse import quote
+            #i_id = quote(i_id)
             # if "~" in i_id:
             #     i_id = i_id.split("~")[0]
             #print((w_id, i_id))
@@ -1942,7 +1946,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.instance_count.set_subtitle(" ")
 
         instance = vrcz.instance_cache.get(location)
-        print(location)
+
         if not instance:
             if location in vrcz.instance_cache:
                 return
@@ -1952,8 +1956,7 @@ class MainWindow(Adw.ApplicationWindow):
 
         self.instance_type.set_subtitle(location_to_instance_type(location))
         self.instance_count.set_subtitle(f"{instance.n_users}/{instance.capacity}")
-        print("aaaaaaaa")
-        print(instance.n_users)
+
 
     def on_selected_friend_click(self, view, n):
         selected_item = self.ss.get_selected_item()
