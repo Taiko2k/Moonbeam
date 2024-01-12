@@ -150,7 +150,7 @@ class RateLimiter:
     def __init__(self):
         self.last_call_time = None
         self.interval = 5
-        self.burst = 3
+        self.burst = 10
 
     def inhibit(self):
         self.burst -= 1
@@ -977,6 +977,8 @@ class VRCZ:
 
     def load_world(self, id, cached=True):
         print("load world1")
+        if not id:
+            return None
         if not id.lower().startswith("wrld_"):
             return None
         if cached and id in self.worlds:
@@ -995,7 +997,7 @@ class VRCZ:
         try:
             rl.inhibit()
             w = self.world_api.get_world(id)
-
+            #print(w)
             world.load_from_api_model(w)
 
             if world not in failed_files:
@@ -1241,7 +1243,7 @@ class MainWindow(Adw.ApplicationWindow):
 
 
         self.nav = Adw.NavigationSplitView()
-        self.nav.set_max_sidebar_width(260)
+        self.nav.set_max_sidebar_width(300)
         self.header = Adw.HeaderBar()
 
         action = Gio.SimpleAction.new("logout", None)
@@ -1917,6 +1919,7 @@ class MainWindow(Adw.ApplicationWindow):
         world_id = vrcz.parse_world_id(p.location)
 
         if world_id:
+
             if world_id in vrcz.worlds:
                 world = vrcz.worlds[world_id]
                 self.set_world_view(world)
@@ -2008,6 +2011,8 @@ class MainWindow(Adw.ApplicationWindow):
 
             capacity = ""
             world_id = vrcz.parse_world_id(friend.location)
+            #print(friend.display_name)
+            #print(world_id)
             if world_id:
                 if world_id in vrcz.worlds:
                     world = vrcz.worlds[world_id]
