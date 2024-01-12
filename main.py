@@ -349,6 +349,7 @@ class VRCZ:
         self.api_client = vrchatapi.ApiClient()
         self.api_client.user_agent = USER_AGENT
         self.api_client.configuration.safe_chars_for_path_param += "~()"
+        self.api_client.configuration.client_side_validation = False
         self.auth_api = authentication_api.AuthenticationApi(self.api_client)
         self.world_api = vrchatapi.WorldsApi(self.api_client)
         self.instance_api = vrchatapi.InstancesApi(self.api_client)
