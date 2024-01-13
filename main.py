@@ -1244,7 +1244,7 @@ class MainWindow(Adw.ApplicationWindow):
 
 
         self.nav = Adw.NavigationSplitView()
-        self.nav.set_max_sidebar_width(300)
+        self.nav.set_max_sidebar_width(290)
         self.header = Adw.HeaderBar()
 
         action = Gio.SimpleAction.new("logout", None)
@@ -1888,7 +1888,7 @@ class MainWindow(Adw.ApplicationWindow):
         if p.last_platform == "standalonewindows":
             platform = "PC"
         elif p.last_platform == "android":
-            platform = "Android/Quest"
+            platform = "Android"
         elif p.last_platform:
             platform = p.last_platform
         self.info_platform.set_subtitle(platform)
