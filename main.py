@@ -29,9 +29,9 @@ from unidecode import unidecode
 
 
 APP_TITLE = "Moonbeam"
-VERSION = "v0.1 indev"
+VERSION = "v0.1-indev"
 APP_ID = "com.github.taiko2k.moonbeam"
-USER_AGENT = 'moonbeam/indev captain.gxj@gmail.com'
+USER_AGENT = f'moonbeam/{VERSION} captain.gxj@gmail.com'
 REQUEST_DL_HEADER = {
     'User-Agent': USER_AGENT,
 }
