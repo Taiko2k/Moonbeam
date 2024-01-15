@@ -702,34 +702,16 @@ class VRCZ:
 
         print(user)
 
-        for id in user.offline_friends:
+        for id in user.friends:
             friend = self.friend_objects.get(id)
             if not friend or (friend and not friend.is_friend):
                 e = Event("friend-add", id)
                 self.friend_log.append(e)
                 job = Job(name="event", data=e)
                 self.posts.append(job)
-            if friend:
-                friend.is_friend = True
-                friend.status = "offline"
-                friend.location = "offline"
-
-        for id in user.online_friends:
-            friend = self.friend_objects.get(id)
-            if not friend or (friend and not friend.is_friend):
-                e = Event("friend-add", id)
-                self.friend_log.append(e)
-                job = Job(name="event", data=e)
-                self.posts.append(job)
-            if friend:
-                friend.status = "active"
-                friend.is_friend = True
 
         for id, friend in self.friend_objects.items():
-            if id not in user.offline_friends and \
-                    id not in user.active_friends and \
-                    id not in user.online_friends:
-
+            if id not in user.friends:
                 if friend.is_friend:
                     friend.is_friend = False
                     e = Event("friend-delete", id)
@@ -737,13 +719,21 @@ class VRCZ:
                     job = Job(name="event", data=e)
                     self.posts.append(job)
 
+        for id in user.offline_friends:
+            friend = self.friend_objects.get(id)
+            if friend:
+                friend.is_friend = True
+                friend.status = "offline"
+                friend.location = "offline"
+
+        for id in user.online_friends:
+            friend = self.friend_objects.get(id)
+            if friend:
+                friend.status = "active"
+                friend.is_friend = True
+
         for id in user.active_friends:
             friend = self.friend_objects.get(id)
-            if not friend or (friend and not friend.is_friend):
-                e = Event("friend-add", id)
-                self.friend_log.append(e)
-                job = Job(name="event", data=e)
-                self.posts.append(job)
             if friend:
                 friend.is_friend = True
                 friend.status = "active"
