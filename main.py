@@ -61,7 +61,7 @@ def extract_filename(url):
 COPY_FRIEND_PROPERTIES = [
     "location", "id", "last_platform", "display_name", "user_icon", "status", "status_description", "bio", "is_friend",
     "last_platform", "current_avatar_thumbnail_image_url", "note", "status_description", "tags", "profile_pic_override",
-    "date_joined", "last_login"
+    "date_joined", "last_login", "bio_links"
 ]
 
 COPY_WORLD_PROPERTIES = [
