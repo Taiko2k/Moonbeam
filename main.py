@@ -1,5 +1,6 @@
 import sys
 import gi
+
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 from gi.repository import Gtk, Adw, GObject, Gio, GLib, Gdk, Graphene, Gsk
@@ -26,7 +27,6 @@ import datetime
 import copy
 import traceback
 from unidecode import unidecode
-
 
 APP_TITLE = "Moonbeam"
 VERSION = "v0.1-indev"
@@ -57,13 +57,16 @@ def extract_filename(url):
             return part
     return None
 
+
 COPY_FRIEND_PROPERTIES = [
     "location", "id", "last_platform", "display_name", "user_icon", "status", "status_description", "bio", "is_friend",
-    "last_platform", "current_avatar_thumbnail_image_url", "note", "status_description", "tags", "profile_pic_override"
+    "last_platform", "current_avatar_thumbnail_image_url", "note", "status_description", "tags", "profile_pic_override",
+    "date_joined", "last_login"
 ]
 
 COPY_WORLD_PROPERTIES = [
-    "author_id", "author_name", "capacity", "created_at", "description", "id", "thumbnail_image_url", "instances", "name",
+    "author_id", "author_name", "capacity", "created_at", "description", "id", "thumbnail_image_url", "instances",
+    "name",
     "recommended_capacity", "release_status", "instances"
 ]
 
@@ -71,6 +74,18 @@ COPY_INSTANCE_PROPERTIES = {
     "active", "can_request_invite", "capacity", "instance_id", "location", "name", "n_users", "region", "platforms",
     "world_id"
 }
+
+
+def camel_to_snake(name):
+    return ''.join(['_' + c.lower() if c.isupper() else c for c in name]).lstrip('_')
+
+
+def snake_to_camel(name):
+    components = name.split('_')
+    # Capitalize the first letter of each component except the first one
+    # with the 'title' method and join them together
+    return components[0] + ''.join(x.title() for x in components[1:])
+
 
 def location_to_instance_type(location):
     instance_type = ""
@@ -85,6 +100,7 @@ def location_to_instance_type(location):
     elif ":" in location:
         instance_type = "Public"
     return instance_type
+
 
 language_emoji_dict = {
     "language_eng": "🇬🇧",  # English - UK Flag
@@ -110,14 +126,15 @@ language_emoji_dict = {
     "language_ara": "🇸🇦",  # Arabic - Saudi Arabia flag (but Arabic is spoken in many countries)
     "language_ron": "🇷🇴",  # Romanian
     "language_vie": "🇻🇳",  # Vietnamese
-    "language_ase": "🇺🇸🤟",   # American Sign Language - Sign for 'I love you'
-    "language_bfi": "🇬🇧🤟", # British Sign Language - Combining UK flag and the sign
-    "language_dse": "🇳🇱🤟", # Dutch Sign Language - Combining Netherlands flag and the sign
-    "language_fsl": "🇫🇷🤟", # French Sign Language - Combining French flag and the sign
+    "language_ase": "🇺🇸🤟",  # American Sign Language - Sign for 'I love you'
+    "language_bfi": "🇬🇧🤟",  # British Sign Language - Combining UK flag and the sign
+    "language_dse": "🇳🇱🤟",  # Dutch Sign Language - Combining Netherlands flag and the sign
+    "language_fsl": "🇫🇷🤟",  # French Sign Language - Combining French flag and the sign
     "language_kvk": "🇰🇷🤟"  # Korean Sign Language - Combining Korean flag and the sign
 }
 
 failed_files = []
+
 
 class Timer:
     def __init__(self, force=None):
@@ -166,6 +183,7 @@ class RateLimiter:
         self.last_call_time = time.monotonic()
         return
 
+
 rl = RateLimiter()
 
 RUNNING = True
@@ -185,8 +203,6 @@ def format_time(t):
         formatted_time = dt.strftime('%d %b %I:%M%p').replace(" 0", " ").lower()
 
     return formatted_time
-
-
 
 
 class LogReader:
@@ -231,7 +247,7 @@ class LogReader:
             return []
 
         with open(os.path.join(self.directory, self.current_file), 'rb') as f:
-            #self.last_position = 0
+            # self.last_position = 0
             f.seek(self.last_position)
             content = f.read()
             if not content:
@@ -252,6 +268,7 @@ class LogReader:
 
         return new_logs
 
+
 class FriendRow(GObject.Object):
     name = GObject.Property(type=str, default='')
     location = GObject.Property(type=str, default='')
@@ -270,6 +287,7 @@ class FriendRow(GObject.Object):
         self.is_favorite = False
         self.public_count = ""
 
+
 class Friend():
     def __init__(self, **kwargs):
         for item in COPY_FRIEND_PROPERTIES:
@@ -277,12 +295,19 @@ class Friend():
         for key, value in kwargs.items():
             setattr(self, key, value)
 
+    def from_json(self, json):
+        for key in COPY_FRIEND_PROPERTIES:
+            c = snake_to_camel(key)
+            if c in json:
+                setattr(self, key, json[c])
+
     def get_banner_url(self):
         if hasattr(self, "profile_pic_override") and self.profile_pic_override:
             return self.profile_pic_override
         if hasattr(self, "current_avatar_thumbnail_image_url") and self.current_avatar_thumbnail_image_url:
             return self.current_avatar_thumbnail_image_url
         return ""
+
 
 class World():
     def __init__(self, **kwargs):
@@ -293,16 +318,20 @@ class World():
             setattr(self, item, "")
         for key, value in kwargs.items():
             setattr(self, key, value)
+
     def load_from_api_model(self, w):
         for item in COPY_WORLD_PROPERTIES:
             setattr(self, item, getattr(w, item))
+
 
 class Job:
     def __init__(self, name: str, data=None):
         self.name = name
         self.data = data
 
+
 test = Job("a", "b")
+
 
 class Event:
     def __init__(self, type="", content=None):
@@ -322,7 +351,6 @@ class Instance:
             setattr(self, item, "")
         for item in COPY_INSTANCE_PROPERTIES:
             setattr(self, item, getattr(instance, item))
-
 
 
 class VRCZ:
@@ -365,9 +393,11 @@ class VRCZ:
         self.posts = []
 
         self.events = []
+        self.friend_log = []
 
         self.log_reader = None
-        self.log_dir = os.path.expanduser("~/.local/share/Steam/steamapps/compatdata/438100/pfx/drive_c/users/steamuser/AppData/LocalLow/VRChat/VRChat")
+        self.log_dir = os.path.expanduser(
+            "~/.local/share/Steam/steamapps/compatdata/438100/pfx/drive_c/users/steamuser/AppData/LocalLow/VRChat/VRChat")
         print(self.log_dir)
         if os.path.isdir(self.log_dir):
             print("VRCHAT Data folder found!")
@@ -378,7 +408,6 @@ class VRCZ:
         self.online_friend_db_update_timer = None
         self.offline_friend_db_update_timer = None
         self.ws = None
-
 
     # def instance_from_location(self, location):
     #     if not location or not location.lower().startswith("wrld_") or not ":" in location:
@@ -432,11 +461,30 @@ class VRCZ:
                     self.posts.append(job)
 
     def process_event(self, event):
-        #bm2
+        # bm2
         event.timestamp = time.time()
         if event.type.startswith("friend-"):
             friend = self.friend_objects.get(event.content["userId"])
-            if friend:
+            if event.type == "friend-delete":
+                if friend:
+                    friend.is_friend = False
+                event.content = event.content["userId"]
+                self.friend_log.append(event)
+                job = Job(name="event", data=event)
+                self.posts.append(job)
+            elif event.type == "friend-add":
+                print("Received new friend")
+                if not friend:
+                    friend = Friend()
+                    friend.from_json(event.content["user"])
+                friend.is_friend = True
+                self.friend_objects[event.content["user"]["id"]] = friend
+                event.content = event.content["userId"]
+                self.friend_log.append(event)
+                job = Job(name="event", data=event)
+                self.posts.append(job)
+
+            elif friend:
                 event.subject = friend
                 if event.type == "friend-online":
                     if friend:
@@ -475,6 +523,7 @@ class VRCZ:
 
     def web_monitor(self):
         print("Start websocket thread")
+
         def extract_auth_token_from_api_client(api_client):
             for cookie in api_client.rest_client.cookie_jar:
                 if cookie.name == "auth":
@@ -535,6 +584,11 @@ class VRCZ:
                     for e in self.events:
                         job = Job(name="event", data=e)
                         self.posts.append(job)
+                if "friend-log" in d:
+                    self.friend_log.extend(d["friend-log"])
+                    for e in self.friend_log:
+                        job = Job(name="event", data=e)
+                        self.posts.append(job)
                 if "worlds" in d:
                     for k, v in d["worlds"].items():
                         world = World(**v)
@@ -560,11 +614,12 @@ class VRCZ:
         for k, v in self.worlds.items():
             worlds[k] = copy.deepcopy(v.__dict__)
             del worlds[k]["instances"]
-            #del worlds[k]["last_fetched"]
+            # del worlds[k]["last_fetched"]
 
         d["friends"] = friends
         d["self"] = self.user_object.__dict__
         d["events"] = self.events
+        d["friend-log"] = self.friend_log
         d["worlds"] = worlds
         if self.online_friend_db_update_timer:
             d["db_online_time"] = self.online_friend_db_update_timer.start
@@ -582,11 +637,9 @@ class VRCZ:
         self.api_client.configuration.password = password
         self.last_status = ""
 
-
         user = self.auth_api.get_current_user()
         self.logged_in = True
         self.current_user_name = user.display_name
-
 
     def sign_in_step2(self, email_code):
         try:
@@ -637,7 +690,7 @@ class VRCZ:
         except Exception as e:
             print("ERROR --1")
             print(str(e))
-            job = Job("login-reset")
+            job = Job("force-logout")
             self.posts.append(job)
             return 1
 
@@ -651,17 +704,48 @@ class VRCZ:
 
         for id in user.offline_friends:
             friend = self.friend_objects.get(id)
+            if not friend or (friend and not friend.is_friend):
+                e = Event("friend-add", id)
+                self.friend_log.append(e)
+                job = Job(name="event", data=e)
+                self.posts.append(job)
             if friend:
+                friend.is_friend = True
                 friend.status = "offline"
                 friend.location = "offline"
+
         for id in user.online_friends:
             friend = self.friend_objects.get(id)
+            if not friend or (friend and not friend.is_friend):
+                e = Event("friend-add", id)
+                self.friend_log.append(e)
+                job = Job(name="event", data=e)
+                self.posts.append(job)
             if friend:
                 friend.status = "active"
+                friend.is_friend = True
+
+        for id, friend in self.friend_objects.items():
+            if id not in user.offline_friends and \
+                    id not in user.active_friends and \
+                    id not in user.online_friends:
+
+                if friend.is_friend:
+                    friend.is_friend = False
+                    e = Event("friend-delete", id)
+                    self.friend_log.append(e)
+                    job = Job(name="event", data=e)
+                    self.posts.append(job)
 
         for id in user.active_friends:
             friend = self.friend_objects.get(id)
+            if not friend or (friend and not friend.is_friend):
+                e = Event("friend-add", id)
+                self.friend_log.append(e)
+                job = Job(name="event", data=e)
+                self.posts.append(job)
             if friend:
+                friend.is_friend = True
                 friend.status = "active"
                 friend.location = "offline"
 
@@ -718,7 +802,6 @@ class VRCZ:
             for fav in ff:
                 self.favorite_friends[fav.favorite_id] = fav.id
 
-
         print(f"Logged in as: {self.current_user_name}")
 
         job = Job("update-friend-list")
@@ -772,8 +855,6 @@ class VRCZ:
                 job = Job("update-instance-info", location)
                 self.posts.append(job)
 
-
-
             if self.jobs:
                 job = self.jobs.pop(0)
                 print("Doing Job...")
@@ -793,7 +874,6 @@ class VRCZ:
                         job = Job("login-error")
                         job.data = e
                         self.posts.append(job)
-
 
                 if job.name == "event":
                     self.process_event(job.data)
@@ -822,7 +902,7 @@ class VRCZ:
                         if not next:
                             break
                         for r in next:
-                            #print(r)
+                            # print(r)
                             self.update_local_friend_data(r)
                         job = Job("update-friend-list")
                         vrcz.posts.append(job)
@@ -867,7 +947,6 @@ class VRCZ:
                         if len(next) < n:
                             break
 
-
                     self.save_app_data()
                     job = Job("update-friend-rows")
                     self.posts.append(job)
@@ -875,7 +954,6 @@ class VRCZ:
                     self.posts.append(job)
                     job = Job("spinner-stop")
                     self.posts.append(job)
-
 
                 if job.name == "download-check-user-icon":
 
@@ -931,7 +1009,6 @@ class VRCZ:
                             job = Job("check-user-info-banner")
                             job.data = v
                             self.posts.append(job)
-
 
                 if job.name == "download-check-user-avatar-thumbnail":
 
@@ -998,20 +1075,19 @@ class VRCZ:
         try:
             rl.inhibit()
             w = self.world_api.get_world(id)
-            #print(w)
+            # print(w)
             world.load_from_api_model(w)
 
             if world not in failed_files:
                 job = Job("download-check-world-banner", world)
                 self.jobs.append(job)
         except Exception as e:
-            #raise
+            # raise
             print(str(e))
 
         world.last_fetched.set()
 
-
-        #print(w)
+        # print(w)
 
         self.worlds[id] = world
         return world
@@ -1026,10 +1102,10 @@ class VRCZ:
             w_id, i_id = location.split(":")
 
             from urllib.parse import quote
-            #i_id = quote(i_id)
+            # i_id = quote(i_id)
             # if "~" in i_id:
             #     i_id = i_id.split("~")[0]
-            #print((w_id, i_id))
+            # print((w_id, i_id))
             rl.inhibit()
             instance = self.instance_api.get_instance(w_id, i_id)
             if not instance:
@@ -1047,7 +1123,6 @@ class VRCZ:
         self.instance_cache[location] = Instance(instance)
 
 
-
 vrcz = VRCZ()
 vrcz.load_app_data()
 
@@ -1055,9 +1130,11 @@ thread = threading.Thread(target=vrcz.worker)
 thread.daemon = True  # Set the thread as a daemon
 thread.start()
 
+
 class UserIconDisplay(Gtk.Widget):
     icon_path = GObject.Property(type=str, default='')
     status_mode = GObject.Property(type=int, default=0)
+
     def __init__(self):
         super().__init__()
         self.connect("notify::icon-path", self._on_icon_path_changed)
@@ -1072,8 +1149,9 @@ class UserIconDisplay(Gtk.Widget):
 
     def _on_status_mode_changed(self, widget, param):
         self.queue_draw()
+
     def _on_icon_path_changed(self, widget, param):
-        #print(f"Icon path changed to: {self.icon_path}")
+        # print(f"Icon path changed to: {self.icon_path}")
         if self.icon_path:
             if not os.path.isfile(self.icon_path):  # warning todo
                 return
@@ -1134,9 +1212,7 @@ class UserIconDisplay(Gtk.Widget):
         self.set_color(0.1, 0.1, 0.1, 1)
         s.append_border(self.r_rect, [1] * 4, [self.colour] * 4)
 
-
-        #s.append_color(self.colour, self.rect)
-
+        # s.append_color(self.colour, self.rect)
 
 
 class UserInfoWindow(Adw.Window):
@@ -1149,7 +1225,6 @@ class UserInfoWindow(Adw.Window):
 class MainWindow(Adw.ApplicationWindow):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
 
         self.set_default_size(1300, 650)
         self.set_title(APP_TITLE)
@@ -1176,7 +1251,7 @@ class MainWindow(Adw.ApplicationWindow):
         icon.set_pixel_size(60)
         icon.set_margin_bottom(-10)
 
-        #icon.set_margin_bottom(30)
+        # icon.set_margin_bottom(30)
         logo_box.append(icon)
         filler = Gtk.Box()
         logo_box.append(filler)
@@ -1191,7 +1266,6 @@ class MainWindow(Adw.ApplicationWindow):
         self.password_entry = Gtk.PasswordEntry(placeholder_text="Password")
         self.password_entry.set_show_peek_icon(True)
         self.login_box.append(self.password_entry)
-
 
         box.append(self.login_box)
 
@@ -1225,7 +1299,6 @@ class MainWindow(Adw.ApplicationWindow):
 
         box.append(go_box)
 
-
         box2 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         box2.set_vexpand(True)
         box.append(box2)
@@ -1241,7 +1314,6 @@ class MainWindow(Adw.ApplicationWindow):
         label.set_margin_bottom(20)
         self.set_style(label, "dim-label")
         box.append(label)
-
 
         self.nav = Adw.NavigationSplitView()
         self.nav.set_max_sidebar_width(290)
@@ -1272,7 +1344,6 @@ class MainWindow(Adw.ApplicationWindow):
         l_menu = Gio.Menu.new()
         l_menu.append_item(item)
 
-
         self.l_menu = Gtk.MenuButton()
         self.l_menu.set_icon_name("open-menu-symbolic")
         self.l_popover = Gtk.PopoverMenu.new_from_model(l_menu)
@@ -1287,13 +1358,12 @@ class MainWindow(Adw.ApplicationWindow):
         self.nav.set_content(self.n1)
         self.nav.set_sidebar(self.n0)
 
-        #self.set_content(self.nav)
+        # self.set_content(self.nav)
         self.login_toast_overlay = Adw.ToastOverlay()
         self.login_toast_overlay.set_child(self.login_toolbarview)
         self.set_content(self.login_toast_overlay)
         self.login_toast = Adw.Toast()
         self.login_toast.set_timeout(5)
-
 
         self.vsw1 = Adw.ViewSwitcher()
         self.vst1 = Adw.ViewStack()
@@ -1303,9 +1373,8 @@ class MainWindow(Adw.ApplicationWindow):
         self.t1.set_content(self.vst1)
 
         self.spinner = Gtk.Spinner()
-        #self.spinner.start()
+        # self.spinner.start()
         self.header.pack_end(self.spinner)
-
 
         # ------------------ Info page
 
@@ -1320,7 +1389,6 @@ class MainWindow(Adw.ApplicationWindow):
         self.outer_box.set_margin_end(10)
         self.info_box_clamp.set_child(self.outer_box)
 
-
         self.world_box_outer_holder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
 
         self.world_box_holder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -1331,7 +1399,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.set_style(self.world_box_holder, "view")
 
         self.world_box_outer_scroll = Gtk.ScrolledWindow()
-        #self.world_box_outer_scroll.set_vexpand(True)
+        # self.world_box_outer_scroll.set_vexpand(True)
         self.world_box_outer_scroll.set_child(self.world_box_outer_holder)
         self.world_box_outer_holder.append(self.world_box_holder)
 
@@ -1343,8 +1411,6 @@ class MainWindow(Adw.ApplicationWindow):
 
         self.world_status_page.set_icon_name("help-about-symbolic")
         self.world_box_outer_holder.append(self.world_status_page)
-
-
 
         self.world_banner_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         self.world_banner = Gtk.Picture()
@@ -1362,7 +1428,6 @@ class MainWindow(Adw.ApplicationWindow):
         filler = Gtk.Box()
         filler.set_hexpand(True)
         self.world_banner_box.append(filler)
-
 
         self.world_box_holder.append(self.world_banner_box)
 
@@ -1441,18 +1506,15 @@ class MainWindow(Adw.ApplicationWindow):
         self.instancelb2.append(self.instance_count)
         self.instance_row1.append(self.instancelb2)
 
-
         self.instance_box.append(self.instance_row1)
 
-        #filler = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        #filler.set_vexpand(True)
-        #self.world_box_outer_holder.append(filler)
-
+        # filler = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        # filler.set_vexpand(True)
+        # self.world_box_outer_holder.append(filler)
 
         self.info_box_holder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.info_box_holder.set_hexpand(True)
-        #self.info_box_holder.set_size_request(800, -1)
-
+        # self.info_box_holder.set_size_request(800, -1)
 
         self.info_box_holder.set_margin_top(10)
         self.set_style(self.info_box_holder, "view")
@@ -1461,19 +1523,16 @@ class MainWindow(Adw.ApplicationWindow):
         self.info_box_outer_holder.append(self.info_box_holder)
 
         self.info_box_outer_scroll = Gtk.ScrolledWindow()
-        #self.info_box_outer_scroll.set_vexpand(True)
+        # self.info_box_outer_scroll.set_vexpand(True)
         self.info_box_outer_scroll.set_child(self.info_box_outer_holder)
 
-        #self.info_box_clamp.set_child(self.info_box_outer_scroll)
-
+        # self.info_box_clamp.set_child(self.info_box_outer_scroll)
 
         self.outer_box.append(self.info_box_outer_scroll)
         self.info_spacer = Gtk.Box()
         self.info_spacer.set_size_request(10, -1)
         self.outer_box.append(self.info_spacer)
         self.outer_box.append(self.world_box_outer_scroll)
-
-
 
         self.row1and2 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.row1and2.set_hexpand(True)
@@ -1497,7 +1556,6 @@ class MainWindow(Adw.ApplicationWindow):
         filler.set_hexpand(True)
         self.banner_box.append(filler)
 
-
         self.info_box_holder.append(self.banner_box)
 
         self.info_box_holder.append(self.row1and2andpic)
@@ -1506,7 +1564,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.row1and2.append(self.row1)
         self.row1.set_selection_mode(Gtk.SelectionMode.NONE)
 
-        #self.info_box_holder.append(self.row1)
+        # self.info_box_holder.append(self.row1)
         self.row1and2.append(self.row1and2)
 
         self.info_name = Adw.ActionRow()
@@ -1549,8 +1607,6 @@ class MainWindow(Adw.ApplicationWindow):
         self.set_style(self.info_rank, "property")
         self.status_row.append(self.info_rank)
 
-
-
         self.info_status = Adw.ActionRow()
         self.info_status.set_subtitle("Test")
         self.info_status.set_subtitle_selectable(True)
@@ -1579,20 +1635,19 @@ class MainWindow(Adw.ApplicationWindow):
 
         self.row4.append(self.info_note)
 
-        #self.info_box_holder.append(self.row2)
+        # self.info_box_holder.append(self.row2)
 
         # ----------------------------------------------------
-
 
         style_context = self.get_style_context()
         style_context.add_class('devel')
 
-        #self.set_titlebar()
+        # self.set_titlebar()
 
         # Friend list box
         self.friend_list_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        #self.friend_list_box.set_size_request(150, -1)
-        #self.outer_box.append(self.friend_list_box)
+        # self.friend_list_box.set_size_request(150, -1)
+        # self.outer_box.append(self.friend_list_box)
 
         self.n0.set_child(self.friend_list_box)
 
@@ -1657,7 +1712,6 @@ class MainWindow(Adw.ApplicationWindow):
 
             status_hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
 
-
             label = Gtk.Label(halign=Gtk.Align.START)
             label.set_selectable(False)
             label.set_margin_start(10)
@@ -1675,11 +1729,7 @@ class MainWindow(Adw.ApplicationWindow):
             item.public_count = label
             status_hbox.append(label)
 
-
             text_vbox.append(status_hbox)
-
-
-
 
         factory.connect("setup", f_setup)
 
@@ -1687,24 +1737,24 @@ class MainWindow(Adw.ApplicationWindow):
             friend = row.get_item()
 
             friend.bind_property("name",
-                          row.label, "label",
-                          GObject.BindingFlags.SYNC_CREATE)
+                                 row.label, "label",
+                                 GObject.BindingFlags.SYNC_CREATE)
 
             friend.bind_property("location",
-                          row.location_label, "label",
-                          GObject.BindingFlags.SYNC_CREATE)
+                                 row.location_label, "label",
+                                 GObject.BindingFlags.SYNC_CREATE)
 
             friend.bind_property("public_count",
-                          row.public_count, "label",
-                          GObject.BindingFlags.SYNC_CREATE)
+                                 row.public_count, "label",
+                                 GObject.BindingFlags.SYNC_CREATE)
 
             friend.bind_property("mini_icon_filepath",
-                          row.icon, "icon_path",
-                          GObject.BindingFlags.SYNC_CREATE)
+                                 row.icon, "icon_path",
+                                 GObject.BindingFlags.SYNC_CREATE)
 
             friend.bind_property("status",
-                          row.icon, "status_mode",
-                          GObject.BindingFlags.SYNC_CREATE)
+                                 row.icon, "status_mode",
+                                 GObject.BindingFlags.SYNC_CREATE)
 
         factory.connect("bind", f_bind)
 
@@ -1732,15 +1782,12 @@ class MainWindow(Adw.ApplicationWindow):
         self.event_scroll.set_vexpand(True)
         self.event_scroll.set_child(self.event_box)
 
-
         # ----------------
-
 
         self.c3 = Adw.Clamp()
         self.c3.set_child(self.login_box)
 
         self.update_friend_list()
-
 
         self.hand_cursor = Gdk.Cursor.new_from_name("pointer")
         self.css_provider = Gtk.CssProvider()
@@ -1771,26 +1818,28 @@ class MainWindow(Adw.ApplicationWindow):
             self.friend_list_view.set_single_click_activate(False)
         job = Job("update-friend-list")
         vrcz.posts.append(job)
+
     def show_about(self, a, b):
         dialog = Adw.AboutWindow(transient_for=self)
         dialog.set_application_name(APP_TITLE)
         dialog.set_version(VERSION)
         dialog.set_developer_name("Taiko2k")
         dialog.set_license_type(Gtk.License(Gtk.License.GPL_3_0))
-        #dialog.set_comments("test")
+        # dialog.set_comments("test")
         dialog.set_website("https://github.com/Tailko2k/Moonbeam")
-        #dialog.set_issue_url("https://github.com/Tailko2k/Moonbeam/issues")
-        #dialog.add_credit_section("Contributors", ["Name1 url"])
-        #dialog.set_translator_credits("Name1 url")
+        # dialog.set_issue_url("https://github.com/Tailko2k/Moonbeam/issues")
+        # dialog.add_credit_section("Contributors", ["Name1 url"])
+        # dialog.set_translator_credits("Name1 url")
         dialog.set_copyright("© 2024 Taiko2k captain.gxj@gmail.com\n\nThis application is not affiliated with VRChat."
                              " Use at your own risk!"
                              "\n\nVRChat and the VRChat logo are trademarks of VRChat Inc.")
 
-        #dialog.set_developers(["Developer"])
+        # dialog.set_developers(["Developer"])
         dialog.set_application_icon(
             "com.github.taiko2k.moonbeam")  # icon must be uploaded in ~/.local/share/icons or /usr/share/icons
 
         dialog.set_visible(True)
+
     def set_button_as_label(self, button):  # remove me
         style_context = button.get_style_context()
         style_context.add_provider(self.css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
@@ -1809,7 +1858,6 @@ class MainWindow(Adw.ApplicationWindow):
             self.world_status_page.set_title("Private Location")
         if mode == "loading":
             self.world_status_page.set_title("Loading...")
-
 
     def set_world_view(self, world):
         print("set world view")
@@ -1845,6 +1893,7 @@ class MainWindow(Adw.ApplicationWindow):
         else:
             self.world_c_date.set_subtitle(str(world.created_at.strftime('%Y/%m/%d')))
         self.world_author.set_subtitle(world.author_name)
+
     def set_profie_view(self, id):
 
         print("Set profile view")
@@ -1935,7 +1984,6 @@ class MainWindow(Adw.ApplicationWindow):
 
         self.set_instance_view(p)
 
-
     def set_instance_view(self, player):
         location = player.location
         if location == "private":
@@ -1961,12 +2009,12 @@ class MainWindow(Adw.ApplicationWindow):
         self.instance_type.set_subtitle(location_to_instance_type(location))
         self.instance_count.set_subtitle(f"{instance.n_users}/{instance.capacity}")
 
-
     def on_selected_friend_click(self, view, n):
         selected_item = self.ss.get_selected_item()
         if selected_item is not None:
             self.set_profie_view(selected_item.id)
         self.vst1.set_visible_child_name("info")
+
     def on_selected_friend_changed(self, selection, position, n_items):
         if self.friend_search_entry.get_text():
             return
@@ -1974,7 +2022,6 @@ class MainWindow(Adw.ApplicationWindow):
         if selected_item is not None:
             self.set_profie_view(selected_item.id)
         self.vst1.set_visible_child_name("info")
-
 
     def set_friend_row_data(self, id):
 
@@ -2012,8 +2059,8 @@ class MainWindow(Adw.ApplicationWindow):
 
             capacity = ""
             world_id = vrcz.parse_world_id(friend.location)
-            #print(friend.display_name)
-            #print(world_id)
+            # print(friend.display_name)
+            # print(world_id)
             if world_id:
                 if world_id in vrcz.worlds:
                     world = vrcz.worlds[world_id]
@@ -2039,8 +2086,6 @@ class MainWindow(Adw.ApplicationWindow):
             # if row.public_count != count:
             #     row.public_count = count
 
-
-
             new = 0
             if friend.status == "offline":
                 new = 0
@@ -2056,7 +2101,6 @@ class MainWindow(Adw.ApplicationWindow):
                 new = 5
 
             row.status = new
-
 
             if friend.user_icon:
                 key = extract_filename(friend.user_icon)
@@ -2076,32 +2120,30 @@ class MainWindow(Adw.ApplicationWindow):
             self.set_profie_view(user.id)
             self.vst1.set_visible_child_name("info")
 
+    def display_friend_event(self, event):
+        pass
 
     def heartbeat(self):
         update_friend_list = False
         update_friend_rows = False
         while vrcz.posts:
             post = vrcz.posts.pop(0)
-            #print("post")
-            #print(post.name)
+            # print("post")
+            # print(post.name)
 
             if post.name == "login-done":
                 self.login_reset()
                 self.main_view()
                 self.login_spinner.stop()
+            if post.name == "force-logout":
+                self.login_spinner.stop()
+                self.activate_logout(None, None)
             if post.name == "login-reset":
                 self.login_reset()
                 self.login_spinner.stop()
             if post.name == "login-error":
                 e = post.data
                 print(str(e))
-                reason = False
-                try:
-                    print(e.reason)
-                    reason = True
-                except:
-                    pass
-
 
                 if "Invalid Username" in str(e):
                     self.login_toast.set_title("Invalid username, email or password")
@@ -2161,22 +2203,26 @@ class MainWindow(Adw.ApplicationWindow):
                     continue
                 if event.type == "friend-update":
                     continue
+                if event.type == "friend-delete":
+                    self.display_friend_event(event)
+                    continue
+                if event.type == "friend-add":
+                    self.display_friend_event(event)
+                    continue
 
                 box = Gtk.Box()
                 box.set_margin_bottom(0)
-                #print(event.type)
-
+                # print(event.type)
 
                 label = Gtk.Label(label=format_time(event.timestamp))
                 self.set_style(label, "dim-label")
-                #self.set_style(label, "monospace")
+                # self.set_style(label, "monospace")
                 self.set_style(label, "caption")
                 label.set_margin_end(3)
                 label.set_size_request(70, -1)
                 label.set_xalign(1)
                 label.set_size_request(150, -1)
                 box.append(label)
-
 
                 if event.type == "video":
                     URL, RQ = event.content
@@ -2199,7 +2245,6 @@ class MainWindow(Adw.ApplicationWindow):
                         box.append(label)
 
                     self.event_box.prepend(box)
-
 
                 if event.type.startswith("friend-"):
                     if self.events_empty:
@@ -2257,7 +2302,7 @@ class MainWindow(Adw.ApplicationWindow):
                                 #     label.set_margin_end(5)
                                 #     box.append(label)
                             else:
-                                #target = user.location
+                                # target = user.location
                                 target = event.content["travelingToLocation"]
                                 if not target:
                                     target = event.content["location"]
@@ -2294,7 +2339,6 @@ class MainWindow(Adw.ApplicationWindow):
                                     label.set_margin_end(5)
                                     box.append(label)
 
-
                     self.event_box.prepend(box)
                     job = Job("update-friend-list")
                     vrcz.posts.append(job)
@@ -2310,7 +2354,7 @@ class MainWindow(Adw.ApplicationWindow):
         GLib.timeout_add(500, self.heartbeat)
 
     def test2(self, button):
-        #self.update_friend_list()
+        # self.update_friend_list()
         job = Job("update-friend-list")
 
         # for k, v in self.friend_data.items():
@@ -2327,7 +2371,6 @@ class MainWindow(Adw.ApplicationWindow):
         #     self.login_box.set_visible(True)
         # else:
         #     self.vst1.set_visible_child_name("login")
-
 
     def update_friend_list(self):
 
@@ -2361,10 +2404,10 @@ class MainWindow(Adw.ApplicationWindow):
             if k not in self.friend_data:
                 fd = FriendRow()
 
-            # else:
-            #     fd = self.friend_data[k]
+                # else:
+                #     fd = self.friend_data[k]
                 fd.id = k
-                #fd.is_favorite = k in vrcz.favorite_friends
+                # fd.is_favorite = k in vrcz.favorite_friends
                 self.friend_data[k] = fd
                 self.set_friend_row_data(k)
                 self.friend_ls.append(fd)
@@ -2395,7 +2438,6 @@ class MainWindow(Adw.ApplicationWindow):
                 return 50
             return 60
 
-
         def compare(a, b):
 
             aw = get_weight(a)
@@ -2408,20 +2450,22 @@ class MainWindow(Adw.ApplicationWindow):
 
         self.friend_ls.sort(compare)
 
-
     def activate_test(self, button):
         vrcz.update()
 
     def login_view(self):
         self.set_content(self.login_toast_overlay)
+
     def main_view(self):
         self.set_content(self.nav)
+
     def login_reset(self):
         self.username_entry.set_sensitive(True)
         self.password_entry.set_sensitive(True)
         self.login_button.set_sensitive(True)
         self.login_box.set_visible(True)
         self.two_fa_entry.set_visible(False)
+
     def login_go(self, button):
         username = self.username_entry.get_text()
         password = self.password_entry.get_text()
@@ -2449,6 +2493,7 @@ class MainWindow(Adw.ApplicationWindow):
             vrcz.ws.close()
             vrcz.ws = None
 
+
 class MOONBEAM(Adw.Application):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -2473,4 +2518,3 @@ if vrcz.online_friend_db_update_timer:
     vrcz.online_friend_db_update_timer.set()
 vrcz.save_app_data()
 RUNNING = False
-
