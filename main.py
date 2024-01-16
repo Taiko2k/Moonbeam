@@ -5,11 +5,10 @@ gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 from gi.repository import Gtk, Adw, GObject, Gio, GLib, Gdk, Graphene, Gsk
 import vrchatapi
-from vrchatapi.api import authentication_api, friends_api
 from vrchatapi.exceptions import UnauthorizedException
 from vrchatapi.models.two_factor_auth_code import TwoFactorAuthCode
 from vrchatapi.models.two_factor_email_code import TwoFactorEmailCode
-from vrchatapi.api import authentication_api, friends_api
+from vrchatapi.api import authentication_api, friends_api, users_api
 from vrchatapi.exceptions import UnauthorizedException
 from vrchatapi.models.two_factor_auth_code import TwoFactorAuthCode
 from vrchatapi.models.two_factor_email_code import TwoFactorEmailCode
@@ -378,10 +377,17 @@ class VRCZ:
         self.api_client.user_agent = USER_AGENT
         self.api_client.configuration.safe_chars_for_path_param += "~()"
         self.api_client.configuration.client_side_validation = False
+
+        config = vrchatapi.Configuration.get_default_copy()
+        config.client_side_validation = False
+        vrchatapi.Configuration.set_default(config)
+
         self.auth_api = authentication_api.AuthenticationApi(self.api_client)
         self.world_api = vrchatapi.WorldsApi(self.api_client)
         self.instance_api = vrchatapi.InstancesApi(self.api_client)
         self.favorites_api = vrchatapi.FavoritesApi(self.api_client)
+        self.users_api = vrchatapi.UsersApi(self.api_client)
+
 
         self.favorite_friends = {}
 
@@ -690,6 +696,7 @@ class VRCZ:
         except Exception as e:
             print("ERROR --1")
             print(str(e))
+            raise
             job = Job("force-logout")
             self.posts.append(job)
             return 1
@@ -742,6 +749,16 @@ class VRCZ:
         # Update user data
         if self.user_object is None:
             self.user_object = Friend()
+
+        rl.inhibit()
+        u_user = self.users_api.get_user(self.user_object.id)
+
+        for key in COPY_FRIEND_PROPERTIES:
+            try:
+                setattr(self.user_object, key, getattr(u_user, key))
+            except:
+                print("no user key ", key)
+
         for key in COPY_FRIEND_PROPERTIES:
             try:
                 setattr(self.user_object, key, getattr(user, key))
@@ -2032,7 +2049,6 @@ class MainWindow(Adw.ApplicationWindow):
             # print("LOAD ROW --------")
             # print(f"friend: {friend.display_name}")
             # print(f"location: {friend.location}")
-            # print(f"location: {friend.}")
 
             name = f"<b>{friend.display_name}</b>"
             if friend.id in vrcz.favorite_friends:
@@ -2057,10 +2073,12 @@ class MainWindow(Adw.ApplicationWindow):
             # print(world_id)
             if world_id:
                 if world_id in vrcz.worlds:
+                    #print("Found world")
                     world = vrcz.worlds[world_id]
                     location = f"<span foreground=\"#efb5f5\"><b><small>{world.name}</small></b></span>"
                 else:
                     if world_id not in vrcz.worlds_to_load:
+                        #print("Request load")
                         vrcz.worlds_to_load.append(world_id)
 
             # Determine type
