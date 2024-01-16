@@ -1228,7 +1228,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.login_toolbarview.set_content(self.login_clamp)
 
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        box.set_margin_top(110)
+        box.set_margin_top(100)
         self.login_clamp.set_child(box)
 
         icon = Gtk.Image.new_from_file(f"{APP_ID}.svg")
@@ -1289,6 +1289,10 @@ class MainWindow(Adw.ApplicationWindow):
 
         box.append(go_box)
 
+        label = Gtk.LinkButton.new_with_label("https://vrchat.com", "https://vrchat.com")
+        label.set_margin_top(10)
+        box.append(label)
+
         box2 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         box2.set_vexpand(True)
         box.append(box2)
@@ -1306,7 +1310,7 @@ class MainWindow(Adw.ApplicationWindow):
         box.append(label)
 
         self.nav = Adw.NavigationSplitView()
-        self.nav.set_max_sidebar_width(290)
+        self.nav.set_max_sidebar_width(250)
         self.header = Adw.HeaderBar()
 
         action = Gio.SimpleAction.new("logout", None)
