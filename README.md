@@ -8,7 +8,20 @@ A VRChat companion app for Linux.
 
 Intended to be an alternative to [VRCX](https://github.com/vrcx-team/VRCX), but maybe narrower in scope.
 
-Implemented features:
+### Screenshots
+
+<table>
+  <tr>
+    <td align="center"><img src="https://github.com/Taiko2k/Moonbeam/assets/17271572/69cd6e1f-bf20-4cfc-a2c9-4490656438d0" alt="login"></td>
+    <td align="center"><img src="https://github.com/Taiko2k/Moonbeam/assets/17271572/351321c2-868c-49cb-a08a-0054c1510643" alt="user info"></td>
+  </tr>
+</table>
+
+### Running
+
+todo
+
+### Implemented features
 
  - See which of your friends are online
  - View friend bio information
