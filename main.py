@@ -366,6 +366,7 @@ class VRCZ:
     def __init__(self):
         self.logged_in = False
         self.initial_update = False
+        self.first_run = True
 
         self.current_user_name = ""  # in-game name
         self.friend_id_list = []
@@ -380,6 +381,7 @@ class VRCZ:
 
         self.worlds = {}
         self.worlds_to_load = []
+        self.users_to_load = []
 
         self.error_log = []  # in event of any error, append human-readable string explaining error
         self.api_client = vrchatapi.ApiClient()
@@ -585,6 +587,7 @@ class VRCZ:
     def load_app_data(self):  # Run on application start
         self.load_cookies()
         if os.path.isfile(DATA_FILE):
+            self.first_run = False
             with open(DATA_FILE, 'rb') as file:
                 d = pickle.load(file)
                 # print(d)
@@ -718,22 +721,23 @@ class VRCZ:
 
         print(user)
 
-        for id in user.friends:
-            friend = self.friend_objects.get(id)
-            if not friend or (friend and not friend.is_friend):
-                e = Event("friend-add", id)
-                self.friend_log.append(e)
-                job = Job(name="event", data=e)
-                self.posts.append(job)
-
-        for id, friend in self.friend_objects.items():
-            if id not in user.friends:
-                if friend.is_friend:
-                    friend.is_friend = False
-                    e = Event("friend-delete", id)
+        if not self.first_run:
+            for id in user.friends:
+                friend = self.friend_objects.get(id)
+                if not friend or (friend and not friend.is_friend):
+                    e = Event("friend-add", id)
                     self.friend_log.append(e)
                     job = Job(name="event", data=e)
                     self.posts.append(job)
+
+            for id, friend in self.friend_objects.items():
+                if id not in user.friends:
+                    if friend.is_friend:
+                        friend.is_friend = False
+                        e = Event("friend-delete", id)
+                        self.friend_log.append(e)
+                        job = Job(name="event", data=e)
+                        self.posts.append(job)
 
         for id in user.offline_friends:
             friend = self.friend_objects.get(id)
@@ -870,6 +874,29 @@ class VRCZ:
                 self.posts.append(job)
                 job = Job("update-instance-info", location)
                 self.posts.append(job)
+
+            if not self.jobs and self.users_to_load:
+                id = self.users_to_load.pop(0)
+                user = self.friend_objects.get(id)
+                if not user:
+                    try:
+                        print("GET USER!")
+                        user = Friend()
+                        rl.inhibit()
+                        assert id.startswith("usr_")
+                        u_user = self.users_api.get_user(id)
+                        for key in COPY_FRIEND_PROPERTIES:
+                            try:
+                                setattr(user, key, getattr(u_user, key))
+                            except:
+                                print("no user key ", key)
+                        self.friend_objects[id] = user
+                        job = Job("update-user")
+                        self.posts.append(job)
+
+                    except:
+                        print("GET FRIEND ERROR")
+                        failed_files.append(id)
 
             if self.jobs:
                 job = self.jobs.pop(0)
@@ -1782,30 +1809,52 @@ class MainWindow(Adw.ApplicationWindow):
 
         # ---------------
 
-        self.event_box_holder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+
+        self.event_box_holder = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        #self.event_box_holder.set_hexpand(True)
         self.c4 = Adw.Clamp()
         self.c4.set_maximum_size(1000)
         self.c4.set_child(self.event_box_holder)
         self.vst1.add_titled_with_icon(self.c4, "event", "Tracker", "find-location-symbolic")
 
         self.events_empty = True
-        self.events_empty_status = Adw.StatusPage()
-        self.events_empty_status.set_title("No events yet")
-        self.events_empty_status.set_icon_name("help-about-symbolic")
-        self.events_empty_status.set_vexpand(True)
-        self.event_box_holder.append(self.events_empty_status)
+        # self.events_empty_status = Adw.StatusPage()
+        # self.events_empty_status.set_title("No events yet")
+        # self.events_empty_status.set_icon_name("help-about-symbolic")
+        # self.events_empty_status.set_vexpand(True)
+        # self.event_box_holder.append(self.events_empty_status)
 
         self.event_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.event_box.set_margin_top(5)
+        #self.event_box.set_margin_end(100)
+        self.event_box.set_vexpand(True)
+        self.event_box.set_hexpand(True)
 
         self.event_scroll = Gtk.ScrolledWindow()
         self.event_scroll.set_vexpand(True)
         self.event_scroll.set_child(self.event_box)
+        self.event_box_holder.append(self.event_scroll)
+
+
+        self.flog_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.flog_box.set_margin_top(5)
+        #self.flog_box.set_size_request(900, -1)
+        self.flog_box.set_vexpand(True)
+        self.flog_box.set_hexpand(True)
+
+        self.flog_scroll = Gtk.ScrolledWindow()
+        self.flog_scroll.set_vexpand(True)
+        self.flog_scroll.set_child(self.flog_box)
+        self.event_box_holder.append(self.flog_scroll)
+
 
         # ----------------
+        self.c5 = Adw.Clamp()
+        self.vst1.add_titled_with_icon(self.c5, "room", "Room", "emblem-shared-symbolic")
 
-        self.c3 = Adw.Clamp()
-        self.c3.set_child(self.login_box)
+        self.c6 = Adw.Clamp()
+        self.vst1.add_titled_with_icon(self.c6, "media", "Media", "applications-multimedia-symbolic")
+
 
         self.update_friend_list()
 
@@ -2137,12 +2186,46 @@ class MainWindow(Adw.ApplicationWindow):
                         row.mini_icon_filepath = key_path
 
     def click_user(self, button, user):
-        if user.id:
+        if user and user.id:
             self.set_profie_view(user.id)
             self.vst1.set_visible_child_name("info")
 
     def display_friend_event(self, event):
-        pass
+        box = Gtk.Box()
+        box.set_margin_bottom(0)
+
+        user_id = event.content
+        user = vrcz.friend_objects.get(user_id)
+
+        if event.type == "friend-add":
+            label = Gtk.Label(label="🫂")
+            box.append(label)
+        if event.type == "friend-delete":
+            label = Gtk.Label(label="❌")
+            box.append(label)
+
+        label = Gtk.Label()
+        label.set_margin_start(5)
+
+        if user:
+            label.set_markup(f"<span foreground=\"#16f2ca\" weight=\"bold\">{user.display_name}</span>")
+        else:
+            if user_id not in failed_files and user_id not in vrcz.users_to_load:
+                vrcz.users_to_load.append(user_id)
+
+            label.set_markup(f"<span foreground=\"#16f2ca\" weight=\"bold\">{user_id}</span>")
+
+        b = Gtk.Button()
+        b.connect("clicked", self.click_user, user)
+        b.set_cursor(self.hand_cursor)
+        b.set_child(label)
+
+        self.set_button_as_label(b)
+        b.set_margin_end(5)
+        box.append(b)
+
+        self.flog_box.append(box)
+
 
     def heartbeat(self):
         update_friend_list = False
@@ -2216,6 +2299,18 @@ class MainWindow(Adw.ApplicationWindow):
                 update_friend_list = True
             if post.name == "update-friend-rows":
                 update_friend_rows = True
+            if post.name == "update-user":
+                print("CLEAR EVENT BOX")
+                self.flog_box.remove_all()
+                self.event_box.remove_all()
+
+                for e in vrcz.events:
+                    job = Job(name="event", data=e)
+                    vrcz.posts.append(job)
+                for e in vrcz.friend_log:
+                    job = Job(name="event", data=e)
+                    vrcz.posts.append(job)
+
             if post.name == "event":
                 # bm1
                 event = post.data
@@ -2270,8 +2365,8 @@ class MainWindow(Adw.ApplicationWindow):
                 if event.type.startswith("friend-"):
                     if self.events_empty:
                         self.events_empty = False
-                        self.event_box_holder.remove(self.events_empty_status)
-                        self.event_box_holder.append(self.event_scroll)
+                        # self.event_box_holder.remove(self.events_empty_status)
+                        # self.event_box_holder.append(self.event_scroll)
 
                     user = event.subject
                     if user:
@@ -2387,11 +2482,6 @@ class MainWindow(Adw.ApplicationWindow):
         job = Job("update")
         vrcz.jobs.append(job)
         button.set_sensitive(False)
-        # if vrcz.update():
-        #     button.set_sensitive(False)
-        #     self.login_box.set_visible(True)
-        # else:
-        #     self.vst1.set_visible_child_name("login")
 
     def update_friend_list(self):
 
