@@ -17,9 +17,25 @@ Intended to be an alternative to [VRCX](https://github.com/vrcx-team/VRCX), but 
   </tr>
 </table>
 
-### Running
+### Building a Flatpak
 
-todo
+You will need the package `flatpak-builder`.
+
+ 1. Clone or download this repo, and enter that directory.
+     > git clone https://github.com/Taiko2k/Moonbeam.git
+     > cd Moonbeam
+ 2. Install needed runtime and SDK (~1.3GB):
+    > flatpak install --user flathub org.gnome.Platform//45 org.gnome.Sdk//45
+ 3. Build and install:
+    > flatpak-builder --user --install --force-clean build-dir com.github.taiko2k.moonbeam.json
+
+You can then launch the app from your desktop launcher.
+
+You can uninstall Moonbeam and/or the SDK using:
+
+> flatpak uninstall --user com.github.taiko2k.moonbeam org.gnome.Sdk//45
+
+ 
 
 ### Implemented features
 

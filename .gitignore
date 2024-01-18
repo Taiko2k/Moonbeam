@@ -1,5 +1,7 @@
-*.json
 *.pkl
 cookie_data
 cache
 .idea
+build-dir
+.flatpak-builder
+venv

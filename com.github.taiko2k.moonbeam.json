@@ -1,0 +1,39 @@
+{
+   "app-id":"com.github.taiko2k.moonbeam",
+   "runtime":"org.gnome.Platform",
+   "runtime-version":"45",
+   "sdk":"org.gnome.Sdk",
+   "command":"main.py",
+   "finish-args":[
+      "--share=ipc",
+      "--device=dri",
+      "--socket=wayland",
+      "--socket=fallback-x11",
+      "--filesystem=xdg-pictures",
+      "--filesystem=xdg-download",
+      "--talk-name=org.freedesktop.Notifications"
+   ],
+   "modules":[
+      "python3-modules.json",
+      {
+         "name":"moonbeam",
+         "buildsystem":"simple",
+         "build-commands":[
+            "mkdir -p /app/bin",
+            "cp -r * /app/bin/",
+            "mkdir -p /app/share/icons/hicolor/scalable/apps",
+            "mkdir -p /app/share/icons/hicolor/scalable/actions",
+            "mkdir -p /app/share/icons/hicolor/symbolic/apps",
+            "install -D ${FLATPAK_ID}.svg /app/share/icons/hicolor/scalable/apps/${FLATPAK_ID}.svg",
+            "install -D ${FLATPAK_ID}.desktop /app/share/applications/${FLATPAK_ID}.desktop"
+         ],
+         "sources":[
+            {
+               "type":"dir",
+               "path":"."
+            }
+         ]
+      }
+
+   ]
+}

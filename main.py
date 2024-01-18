@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import sys
 import gi
 
@@ -35,12 +37,19 @@ REQUEST_DL_HEADER = {
     'User-Agent': USER_AGENT,
 }
 
-DATA_FILE = 'user_data.pkl'
-USER_ICON_CACHE = "cache/avatar1"
-WORLD_ICON_CACHE = "cache/world1"
+resource_folder = os.path.dirname(__file__)
+user_data_folder = os.path.join(GLib.get_user_data_dir(), APP_ID)
+user_cache_folder = os.path.join(GLib.get_user_cache_dir(), APP_ID)
+
+DATA_FILE = os.path.join(user_data_folder, 'user_data.pkl')
+USER_ICON_CACHE = os.path.join(user_cache_folder, "vrchatfiles")
+WORLD_ICON_CACHE = USER_ICON_CACHE
 
 WORLD_CACHE_DURATION = 60 * 5
 INSTANCE_CACHE_DURATION = 60 * 3
+
+if not os.path.exists(user_data_folder):
+    os.makedirs(user_data_folder)
 
 if not os.path.exists(USER_ICON_CACHE):
     os.makedirs(USER_ICON_CACHE)
@@ -391,7 +400,7 @@ class VRCZ:
 
         self.favorite_friends = {}
 
-        self.cookie_file_path = 'cookie_data'
+        self.cookie_file_path = os.path.join(user_data_folder, 'cookie_data')
 
         self.log_file_timer = Timer()
 
@@ -1248,13 +1257,13 @@ class MainWindow(Adw.ApplicationWindow):
         box.set_margin_top(100)
         self.login_clamp.set_child(box)
 
-        icon = Gtk.Image.new_from_file(f"{APP_ID}.svg")
+        icon = Gtk.Image.new_from_file(os.path.join(resource_folder, f"{APP_ID}.svg"))
         icon.set_pixel_size(100)
         icon.set_margin_bottom(30)
         box.append(icon)
 
         logo_box = Gtk.Box()
-        icon = Gtk.Image.new_from_file("vrclogoblack.svg")
+        icon = Gtk.Image.new_from_file(os.path.join(resource_folder, "vrclogoblack.svg"))
         icon.set_pixel_size(60)
         icon.set_margin_bottom(-10)
 
