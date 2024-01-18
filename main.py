@@ -1015,6 +1015,8 @@ class VRCZ:
                                 response = requests.get(v.user_icon, headers=REQUEST_DL_HEADER)
                                 with open(key_path, 'wb') as f:
                                     f.write(response.content)
+                                job = Job("update-friend-rows")
+                                self.posts.append(job)
                             except:
                                 failed_files.append(job.data)
 
@@ -1070,6 +1072,8 @@ class VRCZ:
                                 response = requests.get(v.current_avatar_thumbnail_image_url, headers=REQUEST_DL_HEADER)
                                 with open(key_path, 'wb') as f:
                                     f.write(response.content)
+                                job = Job("update-friend-rows")
+                                self.posts.append(job)
                             except:
                                 failed_files.append(job.data)
 
@@ -1098,7 +1102,7 @@ class VRCZ:
 
     def load_world(self, id, cached=True):
         print("load world1")
-        if not id:
+        if not id or id in failed_files:
             return None
         if not id.lower().startswith("wrld_"):
             return None
@@ -1127,6 +1131,7 @@ class VRCZ:
         except Exception as e:
             # raise
             print(str(e))
+            failed_files.append(world)
 
         world.last_fetched.set()
 
@@ -2135,7 +2140,7 @@ class MainWindow(Adw.ApplicationWindow):
                     world = vrcz.worlds[world_id]
                     location = f"<span foreground=\"#efb5f5\"><b><small>{world.name}</small></b></span>"
                 else:
-                    if world_id not in vrcz.worlds_to_load:
+                    if world_id not in vrcz.worlds_to_load and world_id not in failed_files:
                         #print("Request load")
                         vrcz.worlds_to_load.append(world_id)
 
