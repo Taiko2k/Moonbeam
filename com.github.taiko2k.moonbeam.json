@@ -10,6 +10,7 @@
       "--share=network",
       "--socket=wayland",
       "--socket=fallback-x11",
+      "--filesystem=~/.local/share/Steam/",
       "--talk-name=org.freedesktop.Notifications"
    ],
    "modules":[
