@@ -1320,6 +1320,8 @@ class MainWindow(Adw.ApplicationWindow):
         self.two_fa_entry = Gtk.Entry(placeholder_text="Two Factor Authentication Code")
         self.two_fa_entry.set_margin_top(10)
         self.two_fa_entry.set_visible(False)
+        self.two_fa_entry.connect("activate", self.login_go)
+
 
         box.append(self.two_fa_entry)
 
