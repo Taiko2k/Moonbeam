@@ -24,7 +24,7 @@ Intended to be an alternative to [VRCX](https://github.com/vrcx-team/VRCX) but L
  - View friend bio and location information
  - Youtube URL extraction
 
->  :warning: This app is early in development and may be buggy.
+>  :warning: This app is early in development and will be buggy.
 
 ## Building a Flatpak
 
