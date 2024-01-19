@@ -41,12 +41,18 @@ resource_folder = os.path.dirname(__file__)
 user_data_folder = os.path.join(GLib.get_user_data_dir(), APP_ID)
 user_cache_folder = os.path.join(GLib.get_user_cache_dir(), APP_ID)
 
+print(user_data_folder)
+print(user_cache_folder)
+
 DATA_FILE = os.path.join(user_data_folder, 'user_data.pkl')
 USER_ICON_CACHE = os.path.join(user_cache_folder, "vrchatfiles")
 WORLD_ICON_CACHE = USER_ICON_CACHE
 
 WORLD_CACHE_DURATION = 60 * 5
 INSTANCE_CACHE_DURATION = 60 * 3
+
+if "-r" in sys.argv and os.path.exists(DATA_FILE):
+    os.remove(DATA_FILE)
 
 if not os.path.exists(user_data_folder):
     os.makedirs(user_data_folder)
@@ -1029,10 +1035,9 @@ class VRCZ:
                     self.posts.append(job)
 
                 if job.name == "download-check-user-icon":
-
                     v = job.data
                     if v.user_icon and v.user_icon.startswith("http"):
-                        print("check for icon")
+                        #print("check for icon")
                         key = extract_filename(v.user_icon)
                         if not key:
                             print("KEY ERROR")
@@ -1041,15 +1046,15 @@ class VRCZ:
                         key_path = os.path.join(USER_ICON_CACHE, key)
                         if key not in os.listdir(USER_ICON_CACHE):
                             print("download icon")
+                            print(key)
                             try:
                                 response = requests.get(v.user_icon, headers=REQUEST_DL_HEADER)
                                 with open(key_path, 'wb') as f:
                                     f.write(response.content)
                                 job = Job("update-friend-rows")
                                 self.posts.append(job)
-                                job = Job("update-friend-list")
-                                self.posts.append(job)
                             except:
+                                print("FAILED DL ICON")
                                 failed_files.append(job.data)
 
                 if job.name == "download-check-world-banner":
@@ -1086,13 +1091,15 @@ class VRCZ:
                             job = Job("check-user-info-banner")
                             job.data = v
                             self.posts.append(job)
+                            job = Job("update-friend-rows")
+                            self.posts.append(job)
 
 
                 if job.name == "download-check-user-avatar-thumbnail":
 
                     v = job.data
                     if v.current_avatar_thumbnail_image_url and v.current_avatar_thumbnail_image_url.startswith("http"):
-                        print("check for icon")
+                        #print("check for icon")
                         key = extract_filename(v.current_avatar_thumbnail_image_url)
                         if not key:
                             print("KEY ERROR")
@@ -1107,9 +1114,8 @@ class VRCZ:
                                     f.write(response.content)
                                 job = Job("update-friend-rows")
                                 self.posts.append(job)
-                                job = Job("update-friend-list")
-                                self.posts.append(job)
                             except:
+                                raise
                                 failed_files.append(job.data)
 
             if not self.jobs:
@@ -1234,9 +1240,10 @@ class UserIconDisplay(Gtk.Widget):
         self.queue_draw()
 
     def _on_icon_path_changed(self, widget, param):
-        # print(f"Icon path changed to: {self.icon_path}")
+        #print(f"Icon path changed to: {self.icon_path}")
         if self.icon_path:
             if not os.path.isfile(self.icon_path):  # warning todo
+                #print("NO ICON FILE")
                 return
             self.icon_texture = Gdk.Texture.new_from_filename(self.icon_path)
             self.queue_draw()
@@ -2035,6 +2042,11 @@ class MainWindow(Adw.ApplicationWindow):
         else:
             self.banner.set_filename(None)
 
+        job = Job("download-check-user-icon", p)
+        vrcz.jobs.append(job)
+        job = Job("download-check-user-avatar-thumbnail", p)
+        vrcz.jobs.append(job)
+
         self.info_name.set_subtitle(p.display_name)
         lang_line = " "
         if p.tags:
@@ -2218,13 +2230,13 @@ class MainWindow(Adw.ApplicationWindow):
                 key = extract_filename(friend.user_icon)
                 if key:
                     key_path = os.path.join(USER_ICON_CACHE, key)
-                    if row.mini_icon_filepath != key_path:
+                    if row.mini_icon_filepath != key_path and os.path.isfile(key_path):
                         row.mini_icon_filepath = key_path
             elif friend.current_avatar_thumbnail_image_url:
                 key = extract_filename(friend.current_avatar_thumbnail_image_url)
                 if key:
                     key_path = os.path.join(USER_ICON_CACHE, key)
-                    if row.mini_icon_filepath != key_path:
+                    if row.mini_icon_filepath != key_path and os.path.isfile(key_path):
                         row.mini_icon_filepath = key_path
 
     def click_user(self, button, user):
