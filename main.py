@@ -368,7 +368,10 @@ class VRCZ:
         self.initial_update = False
         self.first_run = True
 
+        self.user_db = {}
+
         self.current_user_name = ""  # in-game name
+        self.current_user_id = ""
         self.friend_id_list = []
         self.friend_objects = {}
 
@@ -584,17 +587,32 @@ class VRCZ:
             for cookie in cookie_jar:
                 self.api_client.rest_client.cookie_jar.set_cookie(cookie)
 
-    def load_app_data(self):  # Run on application start
+    def load_app_data(self, id=None):  # Run on application start
         self.load_cookies()
+        self.friend_objects.clear()
+        self.events.clear()
+        self.friend_log.clear()
+
         if os.path.isfile(DATA_FILE):
             self.first_run = False
             with open(DATA_FILE, 'rb') as file:
-                d = pickle.load(file)
+                k = pickle.load(file)
+            if not k:
+                return
+
+            self.user_db = k["user_db"]
+            if not id:
+                id = k["last_user_id"]
+            d = None
+            if id:
+                d = self.user_db.get(id)
+            if d:
                 # print(d)
                 if "friends" in d:
                     for k, v in d["friends"].items():
                         friend = Friend(**v)
                         self.friend_objects[k] = friend
+                self.user_object = None
                 if "self" in d:
                     self.user_object = Friend(**d["self"])
                 if "events" in d:
@@ -619,7 +637,7 @@ class VRCZ:
                     self.offline_friend_db_update_timer.start = d["db_offline_time"]
 
     def save_app_data(self):
-        if not self.logged_in:
+        if not self.logged_in or not self.current_user_id:
             return
         self.save_cookies()
 
@@ -643,8 +661,15 @@ class VRCZ:
             d["db_online_time"] = self.online_friend_db_update_timer.start
         if self.offline_friend_db_update_timer:
             d["db_offline_time"] = self.offline_friend_db_update_timer.start
+
+        self.user_db[self.current_user_id] = d
+
+        k = {}
+        k["last_user_id"] = self.current_user_id
+        k["user_db"] = self.user_db
+
         with open(DATA_FILE, 'wb') as file:
-            pickle.dump(d, file)
+            pickle.dump(k, file)
 
     def sign_in_step1(self, username, password):
         try:
@@ -658,6 +683,8 @@ class VRCZ:
         user = self.auth_api.get_current_user()
         self.logged_in = True
         self.current_user_name = user.display_name
+        self.current_user_id = user.id
+        self.load_app_data(user.id)
 
     def sign_in_step2(self, email_code):
         try:
@@ -717,6 +744,7 @@ class VRCZ:
         self.posts.append(job)
 
         self.current_user_name = user.display_name
+        self.current_user_id = user.id
         self.friend_id_list = user.friends
 
         print(user)
@@ -843,6 +871,8 @@ class VRCZ:
                 pass
         self.logged_in = False
         self.delete_cookies()
+        self.save_app_data()
+
 
     def worker(self):
         while RUNNING:
@@ -1017,6 +1047,8 @@ class VRCZ:
                                     f.write(response.content)
                                 job = Job("update-friend-rows")
                                 self.posts.append(job)
+                                job = Job("update-friend-list")
+                                self.posts.append(job)
                             except:
                                 failed_files.append(job.data)
 
@@ -1055,6 +1087,7 @@ class VRCZ:
                             job.data = v
                             self.posts.append(job)
 
+
                 if job.name == "download-check-user-avatar-thumbnail":
 
                     v = job.data
@@ -1073,6 +1106,8 @@ class VRCZ:
                                 with open(key_path, 'wb') as f:
                                     f.write(response.content)
                                 job = Job("update-friend-rows")
+                                self.posts.append(job)
+                                job = Job("update-friend-list")
                                 self.posts.append(job)
                             except:
                                 failed_files.append(job.data)
