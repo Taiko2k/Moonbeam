@@ -741,7 +741,7 @@ class VRCZ:
         except Exception as e:
             print("ERROR --1")
             print(str(e))
-            raise
+            #raise
             job = Job("force-logout")
             self.posts.append(job)
             return 1
@@ -1703,6 +1703,8 @@ class MainWindow(Adw.ApplicationWindow):
         self.set_style(self.info_rank, "property")
         self.status_row.append(self.info_rank)
 
+
+
         self.info_status = Adw.ActionRow()
         self.info_status.set_subtitle("Test")
         self.info_status.set_subtitle_selectable(True)
@@ -1715,6 +1717,15 @@ class MainWindow(Adw.ApplicationWindow):
 
         self.info_box_holder.append(self.row4)
 
+        self.info_note = Adw.EntryRow()
+        self.info_note.set_show_apply_button(True)
+        #self.info_note.set_subtitle(" ")
+        #self.info_note.set_subtitle_selectable(True)
+        self.info_note.set_title("Note")
+        self.set_style(self.info_note, "property")
+
+        self.row4.append(self.info_note)
+
         self.info_bio = Adw.ActionRow()
         self.info_bio.set_subtitle("Example bio")
         self.info_bio.set_subtitle_selectable(True)
@@ -1723,13 +1734,7 @@ class MainWindow(Adw.ApplicationWindow):
 
         self.row4.append(self.info_bio)
 
-        self.info_note = Adw.ActionRow()
-        self.info_note.set_subtitle(" ")
-        self.info_note.set_subtitle_selectable(True)
-        self.info_note.set_title("Note")
-        self.set_style(self.info_note, "property")
 
-        self.row4.append(self.info_note)
 
         # self.info_box_holder.append(self.row2)
 
@@ -1899,7 +1904,7 @@ class MainWindow(Adw.ApplicationWindow):
 
         # ----------------
         self.c5 = Adw.Clamp()
-        self.vst1.add_titled_with_icon(self.c5, "room", "Room", "emblem-shared-symbolic")
+        self.vst1.add_titled_with_icon(self.c5, "lobby", "Lobby", "emblem-shared-symbolic")
 
         self.c6 = Adw.Clamp()
         self.vst1.add_titled_with_icon(self.c6, "media", "Media", "applications-multimedia-symbolic")
@@ -2084,9 +2089,8 @@ class MainWindow(Adw.ApplicationWindow):
         self.info_bio.set_subtitle(p.bio)
 
         text = p.note
-        if not text:
-            text = " "
-        self.info_note.set_subtitle(text)
+
+        self.info_note.set_text(text)
 
         print(p.location)
         world_id = vrcz.parse_world_id(p.location)
