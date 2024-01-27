@@ -115,6 +115,11 @@ def location_to_instance_type(location):
         instance_type = "Public"
     return instance_type
 
+def destroy_children(parent):
+    while child := parent.get_first_child():
+        parent.remove(child)
+        # todo memory leak
+        #child.destroy()
 
 language_emoji_dict = {
     "language_eng": "🇬🇧",  # English - UK Flag
@@ -375,6 +380,8 @@ class VRCZ:
         self.first_run = True
 
         self.user_db = {}
+
+        self.inited_users = []
 
         self.current_user_name = ""  # in-game name
         self.current_user_id = ""
@@ -821,6 +828,7 @@ class VRCZ:
         elif self.online_friend_db_update_timer.get() > 30:  # 30s
             go = True
         print(self.online_friend_db_update_timer.get())
+
         if go:
             job = Job("refresh-friend-db")
             self.jobs.append(job)
@@ -915,24 +923,26 @@ class VRCZ:
                 id = self.users_to_load.pop(0)
                 user = self.friend_objects.get(id)
                 if not user:
-                    try:
-                        print("GET USER!")
-                        user = Friend()
-                        rl.inhibit()
-                        assert id.startswith("usr_")
-                        u_user = self.users_api.get_user(id)
-                        for key in COPY_FRIEND_PROPERTIES:
-                            try:
-                                setattr(user, key, getattr(u_user, key))
-                            except:
-                                print("no user key ", key)
-                        self.friend_objects[id] = user
-                        job = Job("update-user")
-                        self.posts.append(job)
+                    user = Friend()
 
-                    except:
-                        print("GET FRIEND ERROR")
-                        failed_files.append(id)
+                try:
+                    print("GET USER!")
+                    user = Friend()
+                    rl.inhibit()
+                    assert id.startswith("usr_")
+                    u_user = self.users_api.get_user(id)
+                    for key in COPY_FRIEND_PROPERTIES:
+                        try:
+                            setattr(user, key, getattr(u_user, key))
+                        except:
+                            print("no user key ", key)
+                    print(user)
+                    self.friend_objects[id] = user
+                    job = Job("update-user")
+                    self.posts.append(job)
+                except:
+                    print("GET FRIEND ERROR")
+                    failed_files.append(id)
 
             if self.jobs:
                 job = self.jobs.pop(0)
@@ -2031,6 +2041,10 @@ class MainWindow(Adw.ApplicationWindow):
 
         self.selected_user_info = p
 
+        if id not in vrcz.inited_users and id not in failed_files and id not in vrcz.users_to_load:
+            vrcz.users_to_load.append(id)
+            vrcz.inited_users.append(id)
+
         URL = p.get_banner_url()
         if URL and p not in failed_files:
             # print("URL")
@@ -2090,6 +2104,8 @@ class MainWindow(Adw.ApplicationWindow):
 
         text = p.note
 
+        if not text:
+            text = ""
         self.info_note.set_text(text)
 
         print(p.location)
@@ -2359,8 +2375,8 @@ class MainWindow(Adw.ApplicationWindow):
                 update_friend_rows = True
             if post.name == "update-user":
                 print("CLEAR EVENT BOX")
-                self.flog_box.remove_all()
-                self.event_box.remove_all()
+                destroy_children(self.flog_box)
+                destroy_children(self.event_box)
 
                 for e in vrcz.events:
                     job = Job(name="event", data=e)
