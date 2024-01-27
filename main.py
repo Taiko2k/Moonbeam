@@ -927,7 +927,6 @@ class VRCZ:
 
                 try:
                     print("GET USER!")
-                    user = Friend()
                     rl.inhibit()
                     assert id.startswith("usr_")
                     u_user = self.users_api.get_user(id)
@@ -936,9 +935,9 @@ class VRCZ:
                             setattr(user, key, getattr(u_user, key))
                         except:
                             print("no user key ", key)
-                    print(user)
+                    #print(user)
                     self.friend_objects[id] = user
-                    job = Job("update-user")
+                    job = Job("update-user", user)
                     self.posts.append(job)
                 except:
                     print("GET FRIEND ERROR")
@@ -2041,6 +2040,8 @@ class MainWindow(Adw.ApplicationWindow):
 
         self.selected_user_info = p
 
+        self.set_instance_view(p)
+
         if id not in vrcz.inited_users and id not in failed_files and id not in vrcz.users_to_load:
             vrcz.users_to_load.append(id)
             vrcz.inited_users.append(id)
@@ -2125,7 +2126,6 @@ class MainWindow(Adw.ApplicationWindow):
             else:
                 self.set_world_view_off()
 
-        self.set_instance_view(p)
 
     def set_instance_view(self, player):
         location = player.location
@@ -2384,6 +2384,9 @@ class MainWindow(Adw.ApplicationWindow):
                 for e in vrcz.friend_log:
                     job = Job(name="event", data=e)
                     vrcz.posts.append(job)
+
+                if self.selected_user_info and self.selected_user_info.id == post.data.id:
+                    self.set_profie_view(post.data.id)
 
             if post.name == "event":
                 # bm1
